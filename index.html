@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Location Mapper</title>
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            surface: '#1e1e2f',
+            card: '#2a2a3d',
+            accent: '#7c3aed',
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    .leaflet-control-attribution {
+      background: rgba(0,0,0,0.6) !important;
+      color: #aaa !important;
+    }
+    /* smooth panel transitions */
+    .panel-enter { transform: translateY(100%); }
+    .panel-enter-active { transform: translateY(0); }
+    .panel-leave-active { transform: translateY(100%); }
+  </style>
+</head>
+<body class="bg-gray-950 text-white overflow-hidden h-screen flex flex-col">
+
+  <!-- Full screen map -->
+  <div id="map" class="flex-1 w-full z-0"></div>
+
+  <!-- Floating control bar (glass) -->
+  <div class="absolute bottom-6 left-0 right-0 mx-auto w-11/12 max-w-md bg-card/80 backdrop-blur-md rounded-2xl shadow-2xl border border-white/10 px-4 py-3 z-50 transition-all">
+    <div class="flex items-center justify-between gap-2 flex-wrap">
+      <button id="mark-location" class="bg-accent hover:bg-purple-700 text-white text-sm font-medium px-4 py-2 rounded-full transition-colors">
+        📍 Mark
+      </button>
+      <button id="start-route" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+        🚶 Start Route
+      </button>
+      <button id="finish-route" class="bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium px-4 py-2 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+        🏁 Finish
+      </button>
+      <button id="toggle-list" class="bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium px-4 py-2 rounded-full transition-colors">
+        📋 List
+      </button>
+    </div>
+    <div class="flex justify-between items-center mt-2 text-xs text-gray-400 px-1">
+      <span>Accuracy: <span id="accuracy" class="text-white font-mono">–</span></span>
+      <button id="clear-data" class="text-red-400 hover:text-red-300 underline">Clear all</button>
+    </div>
+  </div>
+
+  <!-- Slide‑up location list panel -->
+  <div id="list-panel" class="absolute bottom-24 left-0 right-0 mx-auto w-11/12 max-w-md bg-card/90 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/10 px-5 py-4 z-40 hidden transition-transform duration-300 ease-out transform translate-y-full">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-lg font-semibold text-white">Saved locations</h2>
+      <button id="close-panel" class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+    </div>
+    <div id="location-list" class="max-h-48 overflow-y-auto space-y-2 text-sm"></div>
+    <button class="mt-3 w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-xl text-sm" id="export-data">📤 Export data</button>
+  </div>
+
+  <!-- Toast notifications -->
+  <div id="toast" class="fixed top-5 right-5 bg-accent text-white px-5 py-3 rounded-xl shadow-lg z-50 hidden transition-opacity duration-500 opacity-0 pointer-events-none"></div>
+
+  <script>
+    // ---------- DARK MAP ----------
+    const map = L.map('map', { zoomControl: false }).setView([20, 0], 2);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap, © CARTO',
+      maxZoom: 19
+    }).addTo(map);
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    // ---------- STATE (generic naming) ----------
+    let currentPosition = null;
+    let youMarker = null;
+    let currentRouteCoords = [];
+    let recording = false;
+
+    // All marked locations (houses, students, etc.)
+    let locations = JSON.parse(localStorage.getItem('mappedLocations') || '[]');
+    const markersLayer = L.layerGroup().addTo(map);
+    const routeLine = L.polyline([], { color: '#7c3aed', weight: 5, dashArray: '10, 10' }).addTo(map);
+
+    // Generic toast
+    function toast(msg, duration = 2500) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.remove('hidden', 'opacity-0');
+      t.classList.add('opacity-100');
+      setTimeout(() => {
+        t.classList.add('opacity-0');
+        setTimeout(() => t.classList.add('hidden'), 500);
+      }, duration);
+    }
+
+    // ---------- GEOLOCATION ----------
+    if (!navigator.geolocation) {
+      toast('Geolocation not supported', 4000);
+    } else {
+      navigator.geolocation.watchPosition(pos => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        currentPosition = { lat: latitude, lng: longitude };
+        document.getElementById('accuracy').textContent = Math.round(accuracy) + 'm';
+
+        if (!youMarker) {
+          youMarker = L.circleMarker([latitude, longitude], {
+            radius: 8, color: '#f43f5e', fillColor: '#f43f5e', fillOpacity: 0.9
+          }).addTo(map).bindPopup('You are here');
+        } else {
+          youMarker.setLatLng([latitude, longitude]);
+        }
+        map.setView([latitude, longitude], 17, { animate: false });
+
+        if (recording) {
+          currentRouteCoords.push([latitude, longitude]);
+          routeLine.setLatLngs(currentRouteCoords);
+        }
+      }, err => toast('Location error: ' + err.message, 4000), {
+        enableHighAccuracy: true, maximumAge: 1000, timeout: 15000
+      });
+    }
+
+    // ---------- MARK ANY LOCATION ----------
+    document.getElementById('mark-location').addEventListener('click', () => {
+      if (!currentPosition) return toast('No GPS fix yet');
+      const name = prompt('Location name (e.g., "Student Ali", "Café"):', 'Point ' + (locations.length + 1));
+      if (!name) return;
+      const note = prompt('Extra note (e.g., "house on east side", "blue door"):', '');
+      const newLoc = {
+        id: Date.now(),
+        name,
+        note: note || '',
+        lat: currentPosition.lat,
+        lng: currentPosition.lng,
+        route: []   // will be filled after recording
+      };
+      locations.push(newLoc);
+      saveLocations();
+      renderAll();
+      toast(`"${name}" marked!`);
+    });
+
+    // ---------- ROUTE RECORDING ----------
+    document.getElementById('start-route').addEventListener('click', () => {
+      if (!currentPosition) return toast('No GPS fix');
+      if (recording) return toast('Already recording');
+      recording = true;
+      currentRouteCoords = [[currentPosition.lat, currentPosition.lng]];
+      routeLine.setLatLngs(currentRouteCoords);
+      document.getElementById('start-route').disabled = true;
+      document.getElementById('finish-route').disabled = false;
+      toast('Recording route...');
+    });
+
+    document.getElementById('finish-route').addEventListener('click', () => {
+      if (!recording) return;
+      recording = false;
+      document.getElementById('start-route').disabled = false;
+      document.getElementById('finish-route').disabled = true;
+
+      if (locations.length === 0) {
+        toast('Mark a location first!');
+        routeLine.setLatLngs([]);
+        currentRouteCoords = [];
+        return;
+      }
+      // Attach route to the most recently added location
+      const lastLoc = locations[locations.length - 1];
+      lastLoc.route = [...currentRouteCoords];
+      saveLocations();
+      renderAll();
+      currentRouteCoords = [];
+      routeLine.setLatLngs([]);
+      toast(`Route saved to "${lastLoc.name}"`);
+    });
+
+    // ---------- RENDER ----------
+    function renderAll() {
+      markersLayer.clearLayers();
+      const listDiv = document.getElementById('location-list');
+      listDiv.innerHTML = '';
+
+      locations.forEach(loc => {
+        // Map marker
+        const marker = L.marker([loc.lat, loc.lng])
+          .addTo(markersLayer)
+          .bindPopup(`
+            <div class="text-sm">
+              <b>${loc.name}</b><br>
+              <span class="text-gray-400">${loc.note || ''}</span><br>
+              ${loc.route.length ? `<button onclick="showDirections(${loc.id})" class="text-accent underline">Get directions</button>` : 'No route recorded'}
+            </div>
+          `);
+
+        // List entry (slide‑up panel)
+        const entry = document.createElement('div');
+        entry.className = 'flex items-center justify-between py-2 border-b border-gray-700 cursor-pointer hover:bg-gray-800 rounded px-2 transition-colors';
+        entry.innerHTML = `
+          <span>${loc.name} ${loc.route.length ? '✅' : '❌'}</span>
+          <span class="text-gray-400 text-xs">${loc.note ? '📝' : ''}</span>
+        `;
+        entry.onclick = () => {
+          map.setView([loc.lat, loc.lng], 18);
+          marker.openPopup();
+          closePanel();
+        };
+        listDiv.appendChild(entry);
+      });
+
+      if (locations.length === 0) {
+        listDiv.innerHTML = '<p class="text-gray-500 text-sm py-2">No locations yet. Use "Mark" to add one.</p>';
+      }
+    }
+
+    function saveLocations() {
+      localStorage.setItem('mappedLocations', JSON.stringify(locations));
+    }
+
+    // ---------- DIRECTIONS (same bearing logic) ----------
+    window.showDirections = function(id) {
+      const loc = locations.find(l => l.id == id);
+      if (!loc || !loc.route.length) return toast('No route for this location.');
+      const steps = generateSteps(loc.route, loc.note);
+      alert('Directions to ' + loc.name + ':\n\n' + steps.join('\n'));
+    };
+
+    function generateSteps(coords, note) {
+      if (coords.length < 2) return ['No movement recorded.'];
+      const steps = [];
+      let totalDist = 0;
+      let prevBearing = bearing(coords[0], coords[1]);
+
+      for (let i = 1; i < coords.length; i++) {
+        const currBearing = bearing(coords[i-1], coords[i]);
+        const dist = haversine(coords[i-1], coords[i]);
+        totalDist += dist;
+        const diff = angleDiff(prevBearing, currBearing);
+        if (diff > 30 || i === coords.length - 1) {
+          const segLen = totalDist - (steps.reduce((s, st) => s + (st.dist||0), 0));
+          if (segLen > 1) {
+            steps.push({
+              text: `Walk ${Math.round(segLen)}m ${bearingToCardinal(prevBearing)}`,
+              dist: segLen
+            });
+          }
+          if (i < coords.length - 1) {
+            prevBearing = currBearing;
+            totalDist = dist;
+          }
+        }
+      }
+
+      const textSteps = steps.map(s => s.text);
+      if (note) textSteps.push('→ ' + note);
+      else textSteps.push('🏁 You have arrived.');
+      return textSteps;
+    }
+
+    // ---------- MATH HELPERS ----------
+    function toRad(d) { return d * Math.PI / 180; }
+    function toDeg(r) { return r * 180 / Math.PI; }
+    function bearing(c1, c2) {
+      const [lat1, lng1] = c1, [lat2, lng2] = c2;
+      const dLng = toRad(lng2 - lng1);
+      const y = Math.sin(dLng) * Math.cos(toRad(lat2));
+      const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+                Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLng);
+      return (toDeg(Math.atan2(y, x)) + 360) % 360;
+    }
+    function haversine(c1, c2) {
+      const R = 6371e3, φ1 = toRad(c1[0]), φ2 = toRad(c2[0]);
+      const Δφ = toRad(c2[0] - c1[0]), Δλ = toRad(c2[1] - c1[1]);
+      const a = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+    function angleDiff(a, b) {
+      let d = Math.abs(a - b) % 360;
+      return d > 180 ? 360 - d : d;
+    }
+    function bearingToCardinal(b) {
+      const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+      return dirs[Math.round(b / 45) % 8];
+    }
+
+    // ---------- PANEL TOGGLE ----------
+    const panel = document.getElementById('list-panel');
+    function openPanel() {
+      panel.classList.remove('hidden');
+      requestAnimationFrame(() => panel.classList.remove('translate-y-full'));
+    }
+    function closePanel() {
+      panel.classList.add('translate-y-full');
+      setTimeout(() => panel.classList.add('hidden'), 300);
+    }
+    document.getElementById('toggle-list').addEventListener('click', openPanel);
+    document.getElementById('close-panel').addEventListener('click', closePanel);
+
+    // ---------- DATA MANAGEMENT ----------
+    document.getElementById('clear-data').addEventListener('click', () => {
+      if (confirm('Delete all saved locations and routes?')) {
+        locations = [];
+        saveLocations();
+        renderAll();
+        toast('All data cleared');
+      }
+    });
+
+    document.getElementById('export-data').addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(locations, null, 2)], {type: 'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'location-mapper-data.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast('Data exported');
+    });
+
+    // Initial render
+    renderAll();
+  </script>
+</body>
+</html>
