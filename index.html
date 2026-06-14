@@ -1,335 +1,1146 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Location Mapper</title>
-  <!-- Tailwind via CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            surface: '#1e1e2f',
-            card: '#2a2a3d',
-            accent: '#7c3aed',
-          }
-        }
-      }
-    }
-  </script>
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <style>
-    .leaflet-control-attribution {
-      background: rgba(0,0,0,0.6) !important;
-      color: #aaa !important;
-    }
-    /* smooth panel transitions */
-    .panel-enter { transform: translateY(100%); }
-    .panel-enter-active { transform: translateY(0); }
-    .panel-leave-active { transform: translateY(100%); }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Location Mapper Pro</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0d1a;
+  --surface:#13131f;
+  --card:#1a1a2e;
+  --card2:#1f1f35;
+  --border:#ffffff14;
+  --border2:#ffffff22;
+  --accent:#7c3aed;
+  --accent2:#6d28d9;
+  --accent-glow:#7c3aed33;
+  --text:#f1f0f8;
+  --text2:#a9a8c0;
+  --text3:#6b6a85;
+  --green:#10b981;
+  --red:#ef4444;
+  --amber:#f59e0b;
+  --blue:#3b82f6;
+  --cyan:#06b6d4;
+  --font: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font)}
+
+/* MAP */
+#map{position:absolute;inset:0;z-index:0}
+.leaflet-control-attribution{background:rgba(0,0,0,0.7)!important;color:#555!important;font-size:10px!important}
+.leaflet-popup-content-wrapper{background:var(--card);border:1px solid var(--border2);border-radius:12px;box-shadow:0 8px 32px #0008;color:var(--text)}
+.leaflet-popup-tip{background:var(--card)}
+.leaflet-popup-content{margin:12px 14px;font-family:var(--font);font-size:13px}
+.leaflet-bar a{background:var(--card)!important;color:var(--text)!important;border-color:var(--border2)!important}
+.leaflet-bar a:hover{background:var(--card2)!important}
+
+/* HEADER BAR */
+#header{
+  position:absolute;top:0;left:0;right:0;
+  background:linear-gradient(180deg,rgba(13,13,26,0.98) 0%,rgba(13,13,26,0.85) 100%);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  z-index:100;
+  padding:10px 14px;
+  display:flex;align-items:center;gap:10px;
+}
+#header .logo{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--text)}
+#header .logo i{color:var(--accent);font-size:20px}
+#header .badge{background:var(--accent-glow);border:1px solid var(--accent);color:var(--accent);font-size:10px;padding:2px 8px;border-radius:20px;letter-spacing:.5px}
+#header .spacer{flex:1}
+#gps-status{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3)}
+#gps-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);transition:background .3s}
+#gps-dot.active{background:var(--green);box-shadow:0 0 6px var(--green)}
+#gps-dot.searching{background:var(--amber);animation:pulse 1s infinite}
+
+/* BOTTOM TOOLBAR */
+#toolbar{
+  position:absolute;bottom:0;left:0;right:0;
+  background:linear-gradient(0deg,rgba(13,13,26,0.98) 0%,rgba(13,13,26,0.85) 100%);
+  backdrop-filter:blur(16px);
+  border-top:1px solid var(--border);
+  z-index:100;
+  padding:10px 12px 12px;
+}
+#toolbar-actions{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+#toolbar-actions::-webkit-scrollbar{display:none}
+.tb-btn{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  background:var(--card);border:1px solid var(--border2);
+  border-radius:12px;padding:8px 12px;min-width:60px;
+  cursor:pointer;transition:all .15s;color:var(--text);font-size:10px;white-space:nowrap;
+  flex-shrink:0;
+}
+.tb-btn i{font-size:20px;color:var(--text2)}
+.tb-btn:hover{background:var(--card2);border-color:var(--border2);transform:translateY(-1px)}
+.tb-btn.primary i{color:var(--accent)}
+.tb-btn.danger i{color:var(--red)}
+.tb-btn.success i{color:var(--green)}
+.tb-btn.recording{background:#ef444422;border-color:#ef444466;animation:pulse-border 1s infinite}
+.tb-btn:disabled{opacity:.4;pointer-events:none}
+#toolbar-meta{display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-size:11px;color:var(--text3);padding:0 2px}
+#toolbar-meta span{display:flex;align-items:center;gap:4px}
+
+/* FLOATING SIDE PANEL */
+#side-panel{
+  position:absolute;right:12px;top:58px;bottom:80px;
+  width:300px;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:16px;
+  z-index:50;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  transform:translateX(320px);
+  transition:transform .25s cubic-bezier(.4,0,.2,1);
+}
+#side-panel.open{transform:translateX(0)}
+#panel-header{
+  padding:14px 16px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--card);
+}
+#panel-header h2{font-size:13px;font-weight:600;color:var(--text)}
+#panel-close{background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;border-radius:6px}
+#panel-close:hover{color:var(--text)}
+#panel-tabs{display:flex;gap:0;border-bottom:1px solid var(--border)}
+.panel-tab{flex:1;padding:9px 4px;text-align:center;font-size:11px;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:.15s}
+.panel-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-pane{display:none;flex:1;overflow-y:auto;flex-direction:column}
+.tab-pane.active{display:flex}
+
+/* SEARCH */
+#search-bar{padding:10px 12px;border-bottom:1px solid var(--border)}
+#search-input{
+  width:100%;background:var(--card);border:1px solid var(--border2);
+  border-radius:8px;padding:7px 10px 7px 32px;
+  color:var(--text);font-size:12px;outline:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b6a85' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:10px center;
+}
+#search-input:focus{border-color:var(--accent)}
+
+/* LOCATION ITEMS */
+.loc-item{
+  padding:10px 14px;border-bottom:1px solid var(--border);
+  cursor:pointer;transition:.15s;display:flex;align-items:flex-start;gap:10px;
+}
+.loc-item:hover{background:var(--card)}
+.loc-icon{
+  width:34px;height:34px;border-radius:9px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--card2);
+}
+.loc-icon i{font-size:16px}
+.loc-body{flex:1;min-width:0}
+.loc-name{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.loc-meta{font-size:10px;color:var(--text3);margin-top:2px}
+.loc-tags{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+.loc-tag{font-size:9px;padding:1px 6px;border-radius:10px;border:1px solid var(--border2);color:var(--text2)}
+.loc-tag.has-route{border-color:#10b98155;color:var(--green)}
+.loc-tag.no-route{border-color:#ef444455;color:var(--red)}
+.loc-actions{display:flex;gap:4px;flex-shrink:0}
+.icon-btn{
+  background:none;border:1px solid var(--border);padding:4px;
+  border-radius:6px;cursor:pointer;color:var(--text3);
+  transition:.15s;font-size:14px;display:flex;align-items:center;
+}
+.icon-btn:hover{color:var(--text);border-color:var(--border2);background:var(--card2)}
+.icon-btn.danger:hover{color:var(--red);border-color:#ef444444}
+
+/* STATS TAB */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px}
+.stat-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;
+}
+.stat-label{font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:4px}
+.stat-value{font-size:20px;font-weight:600;color:var(--text)}
+.stat-sub{font-size:10px;color:var(--text3);margin-top:2px}
+
+/* ROUTE INFO */
+#route-status{
+  margin:0 12px 8px;padding:10px 12px;
+  background:var(--card);border:1px solid var(--border2);
+  border-radius:10px;font-size:11px;
+}
+#route-status .rs-label{color:var(--text3);font-size:10px;margin-bottom:4px}
+#route-status .rs-info{display:flex;gap:12px;align-items:center}
+#route-status .rs-badge{
+  background:#10b98122;border:1px solid #10b98155;
+  color:var(--green);font-size:10px;padding:2px 8px;border-radius:12px;
+}
+#route-status .rs-badge.recording{
+  background:#ef444422;border-color:#ef444455;color:var(--red);animation:pulse 1s infinite;
+}
+
+/* MODAL */
+#modal-overlay{
+  position:absolute;inset:0;background:#00000088;z-index:200;
+  display:none;align-items:center;justify-content:center;
+}
+#modal-overlay.open{display:flex}
+#modal{
+  background:var(--card);border:1px solid var(--border2);
+  border-radius:16px;padding:20px;width:280px;max-width:90%;
+}
+#modal h3{font-size:14px;font-weight:600;margin-bottom:16px}
+.form-group{margin-bottom:12px}
+.form-label{font-size:11px;color:var(--text2);margin-bottom:5px;display:block}
+.form-input{
+  width:100%;background:var(--card2);border:1px solid var(--border2);
+  border-radius:8px;padding:8px 10px;color:var(--text);
+  font-size:12px;outline:none;font-family:var(--font);
+}
+.form-input:focus{border-color:var(--accent)}
+.form-select{appearance:none}
+.category-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:4px}
+.cat-btn{
+  padding:6px 4px;border-radius:8px;border:1px solid var(--border2);
+  background:var(--card2);color:var(--text2);font-size:10px;text-align:center;
+  cursor:pointer;transition:.15s;
+}
+.cat-btn.selected{border-color:var(--accent);background:var(--accent-glow);color:var(--accent)}
+.modal-actions{display:flex;gap:8px;margin-top:16px}
+.btn{
+  flex:1;padding:8px;border-radius:8px;border:1px solid var(--border2);
+  background:var(--card2);color:var(--text);font-size:12px;
+  cursor:pointer;transition:.15s;font-family:var(--font);
+}
+.btn.primary{background:var(--accent);border-color:var(--accent2);color:#fff}
+.btn:hover{opacity:.85}
+
+/* DIRECTIONS MODAL */
+#dir-modal{
+  position:absolute;left:12px;right:12px;bottom:80px;
+  background:var(--card);border:1px solid var(--border2);
+  border-radius:16px;z-index:90;padding:14px;
+  display:none;max-height:240px;overflow-y:auto;
+}
+#dir-modal.open{display:block}
+#dir-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+#dir-header h3{font-size:13px;font-weight:600}
+.dir-step{
+  display:flex;gap:10px;align-items:flex-start;
+  padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;
+}
+.dir-step:last-child{border:none}
+.dir-num{
+  width:20px;height:20px;border-radius:50%;
+  background:var(--accent-glow);border:1px solid var(--accent);
+  color:var(--accent);font-size:9px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.dir-text{color:var(--text);line-height:1.4}
+.dir-dist{font-size:10px;color:var(--text3);margin-top:1px}
+
+/* MEASURE PANEL */
+#measure-bar{
+  position:absolute;top:58px;left:12px;
+  background:var(--card);border:1px solid var(--border2);
+  border-radius:10px;padding:8px 12px;z-index:80;
+  font-size:11px;display:none;gap:12px;align-items:center;
+}
+#measure-bar.open{display:flex}
+
+/* HEATMAP LEGEND */
+#map-legend{
+  position:absolute;left:12px;bottom:80px;
+  background:var(--card);border:1px solid var(--border2);
+  border-radius:10px;padding:8px 10px;z-index:80;font-size:10px;
+  display:none;
+}
+#map-legend.open{display:block}
+
+/* TOAST */
+#toast{
+  position:absolute;top:60px;left:50%;transform:translateX(-50%);
+  background:var(--card);border:1px solid var(--border2);
+  border-radius:20px;padding:8px 16px;font-size:12px;
+  z-index:300;white-space:nowrap;
+  opacity:0;pointer-events:none;transition:opacity .25s;
+  display:flex;align-items:center;gap:6px;
+}
+#toast.show{opacity:1}
+#toast i{font-size:14px}
+#toast.success{border-color:#10b98155;color:var(--green)}
+#toast.error{border-color:#ef444455;color:var(--red)}
+#toast.info{border-color:var(--accent);color:var(--accent)}
+
+/* CONTEXT MENU */
+#ctx-menu{
+  position:absolute;z-index:250;
+  background:var(--card2);border:1px solid var(--border2);
+  border-radius:10px;padding:4px;min-width:160px;display:none;
+  box-shadow:0 8px 24px #0006;
+}
+#ctx-menu.open{display:block}
+.ctx-item{
+  padding:7px 10px;border-radius:7px;font-size:12px;cursor:pointer;
+  display:flex;align-items:center;gap:8px;color:var(--text2);transition:.1s;
+}
+.ctx-item:hover{background:var(--card);color:var(--text)}
+.ctx-item i{font-size:15px}
+.ctx-item.danger{color:#ef444488}
+.ctx-item.danger:hover{color:var(--red)}
+.ctx-sep{height:1px;background:var(--border);margin:3px 0}
+
+/* CLUSTER BADGE */
+.cluster-badge{
+  background:var(--accent);border:2px solid #fff2;
+  width:32px;height:32px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:12px;font-weight:600;
+}
+
+/* MAP TYPE SWITCHER */
+#map-switcher{
+  position:absolute;right:46px;top:10px;
+  z-index:100;display:flex;gap:4px;
+}
+.map-btn{
+  background:var(--card);border:1px solid var(--border2);
+  border-radius:7px;padding:5px 8px;font-size:10px;
+  color:var(--text2);cursor:pointer;transition:.15s;
+}
+.map-btn.active{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
+
+/* MISC */
+.empty-state{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;padding:20px;color:var(--text3);font-size:12px;text-align:center;
+}
+.empty-state i{font-size:36px;opacity:.4}
+.divider{height:1px;background:var(--border);margin:0 12px}
+.pill{
+  background:var(--card);border:1px solid var(--border2);
+  border-radius:20px;padding:3px 10px;font-size:10px;color:var(--text2);
+  cursor:pointer;white-space:nowrap;
+}
+.pill.active{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
+
+#filter-row{display:flex;gap:6px;padding:8px 10px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--border)}
+#filter-row::-webkit-scrollbar{display:none}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes pulse-border{0%,100%{border-color:#ef444466}50%{border-color:#ef4444cc}}
+
+#acc-bar{
+  position:absolute;top:58px;left:50%;transform:translateX(-50%);
+  background:var(--card);border:1px solid var(--border2);
+  border-radius:20px;padding:4px 12px;z-index:80;
+  font-size:10px;color:var(--text3);display:flex;align-items:center;gap:6px;
+}
+
+/* LEAFLET CUSTOM MARKERS */
+.custom-marker{
+  width:32px;height:32px;border-radius:50% 50% 50% 0;
+  border:2px solid #fff4;
+  display:flex;align-items:center;justify-content:center;
+  transform:rotate(-45deg);font-size:14px;
+}
+.custom-marker-inner{transform:rotate(45deg);display:flex;align-items:center;justify-content:center}
+</style>
 </head>
-<body class="bg-gray-950 text-white overflow-hidden h-screen flex flex-col">
+<body>
 
-  <!-- Full screen map -->
-  <div id="map" class="flex-1 w-full z-0"></div>
+<div id="map"></div>
 
-  <!-- Floating control bar (glass) -->
-  <div class="absolute bottom-6 left-0 right-0 mx-auto w-11/12 max-w-md bg-card/80 backdrop-blur-md rounded-2xl shadow-2xl border border-white/10 px-4 py-3 z-50 transition-all">
-    <div class="flex items-center justify-between gap-2 flex-wrap">
-      <button id="mark-location" class="bg-accent hover:bg-purple-700 text-white text-sm font-medium px-4 py-2 rounded-full transition-colors">
-        📍 Mark
-      </button>
-      <button id="start-route" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-        🚶 Start Route
-      </button>
-      <button id="finish-route" class="bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium px-4 py-2 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-        🏁 Finish
-      </button>
-      <button id="toggle-list" class="bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium px-4 py-2 rounded-full transition-colors">
-        📋 List
-      </button>
+<!-- HEADER -->
+<div id="header">
+  <div class="logo">
+    <i class="ti ti-map-pin-filled"></i>
+    Location Mapper Pro
+    <span class="badge">PRO</span>
+  </div>
+  <div class="spacer"></div>
+  <div id="gps-status">
+    <div id="gps-dot" class="searching"></div>
+    <span id="gps-label">Searching…</span>
+  </div>
+</div>
+
+<!-- MAP TYPE SWITCHER -->
+<div id="map-switcher">
+  <div class="map-btn active" onclick="switchMap('dark')">Dark</div>
+  <div class="map-btn" onclick="switchMap('sat')">Sat</div>
+  <div class="map-btn" onclick="switchMap('osm')">OSM</div>
+</div>
+
+<!-- GPS ACCURACY BAR -->
+<div id="acc-bar">
+  <i class="ti ti-satellite" style="font-size:12px"></i>
+  <span>Accuracy: <b id="acc-val" style="color:var(--text)">–</b></span>
+</div>
+
+<!-- MEASURE BAR -->
+<div id="measure-bar">
+  <i class="ti ti-ruler" style="color:var(--amber)"></i>
+  <span>Measuring — click 2 points on map</span>
+  <span id="measure-result" style="color:var(--amber);font-weight:600"></span>
+  <button class="icon-btn" onclick="stopMeasure()"><i class="ti ti-x"></i></button>
+</div>
+
+<!-- SIDE PANEL -->
+<div id="side-panel">
+  <div id="panel-header">
+    <h2><i class="ti ti-list" style="font-size:14px;vertical-align:-2px;margin-right:6px"></i>Locations</h2>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span id="loc-count" style="font-size:11px;color:var(--text3)">0 saved</span>
+      <button class="icon-btn" id="panel-close"><i class="ti ti-x"></i></button>
     </div>
-    <div class="flex justify-between items-center mt-2 text-xs text-gray-400 px-1">
-      <span>Accuracy: <span id="accuracy" class="text-white font-mono">–</span></span>
-      <button id="clear-data" class="text-red-400 hover:text-red-300 underline">Clear all</button>
+  </div>
+  <div id="panel-tabs">
+    <div class="panel-tab active" onclick="switchTab('list')">List</div>
+    <div class="panel-tab" onclick="switchTab('stats')">Stats</div>
+    <div class="panel-tab" onclick="switchTab('export')">Export</div>
+  </div>
+
+  <!-- LIST TAB -->
+  <div class="tab-pane active" id="tab-list" style="flex-direction:column">
+    <div id="search-bar">
+      <input id="search-input" type="text" placeholder="Search locations…" oninput="renderList()"/>
+    </div>
+    <div id="filter-row">
+      <div class="pill active" data-filter="all" onclick="setFilter(this,'all')">All</div>
+      <div class="pill" data-filter="student" onclick="setFilter(this,'student')"><i class="ti ti-user" style="font-size:10px"></i> Student</div>
+      <div class="pill" data-filter="house" onclick="setFilter(this,'house')"><i class="ti ti-home" style="font-size:10px"></i> House</div>
+      <div class="pill" data-filter="school" onclick="setFilter(this,'school')"><i class="ti ti-building" style="font-size:10px"></i> School</div>
+      <div class="pill" data-filter="shop" onclick="setFilter(this,'shop')"><i class="ti ti-shopping-bag" style="font-size:10px"></i> Shop</div>
+      <div class="pill" data-filter="other" onclick="setFilter(this,'other')"><i class="ti ti-tag" style="font-size:10px"></i> Other</div>
+      <div class="pill" data-filter="routed" onclick="setFilter(this,'routed')"><i class="ti ti-route" style="font-size:10px"></i> Has route</div>
+    </div>
+    <div id="location-list" style="flex:1;overflow-y:auto"></div>
+  </div>
+
+  <!-- STATS TAB -->
+  <div class="tab-pane" id="tab-stats" style="flex-direction:column;overflow-y:auto">
+    <div class="stat-grid" id="stats-grid"></div>
+    <div style="padding:0 12px 12px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">By category</div>
+      <div id="cat-chart"></div>
     </div>
   </div>
 
-  <!-- Slide‑up location list panel -->
-  <div id="list-panel" class="absolute bottom-24 left-0 right-0 mx-auto w-11/12 max-w-md bg-card/90 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/10 px-5 py-4 z-40 hidden transition-transform duration-300 ease-out transform translate-y-full">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="text-lg font-semibold text-white">Saved locations</h2>
-      <button id="close-panel" class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
-    </div>
-    <div id="location-list" class="max-h-48 overflow-y-auto space-y-2 text-sm"></div>
-    <button class="mt-3 w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-xl text-sm" id="export-data">📤 Export data</button>
+  <!-- EXPORT TAB -->
+  <div class="tab-pane" id="tab-export" style="flex-direction:column;padding:12px;gap:8px">
+    <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Download your data</div>
+    <button class="btn primary" onclick="exportJSON()"><i class="ti ti-file-type-json" style="margin-right:6px"></i>Export JSON</button>
+    <button class="btn" onclick="exportCSV()"><i class="ti ti-table" style="margin-right:6px"></i>Export CSV</button>
+    <button class="btn" onclick="exportGPX()"><i class="ti ti-route" style="margin-right:6px"></i>Export GPX (routes)</button>
+    <button class="btn" onclick="exportKML()"><i class="ti ti-map" style="margin-right:6px"></i>Export KML (Google Maps)</button>
+    <div class="divider" style="margin:4px 0"></div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Import</div>
+    <button class="btn" onclick="document.getElementById('import-file').click()"><i class="ti ti-upload" style="margin-right:6px"></i>Import JSON backup</button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(this)"/>
+    <div class="divider" style="margin:4px 0"></div>
+    <button class="btn danger" onclick="clearAll()" style="color:var(--red);border-color:#ef444444"><i class="ti ti-trash" style="margin-right:6px"></i>Clear all data</button>
   </div>
+</div>
 
-  <!-- Toast notifications -->
-  <div id="toast" class="fixed top-5 right-5 bg-accent text-white px-5 py-3 rounded-xl shadow-lg z-50 hidden transition-opacity duration-500 opacity-0 pointer-events-none"></div>
+<!-- CONTEXT MENU -->
+<div id="ctx-menu">
+  <div class="ctx-item" onclick="ctxMarkHere()"><i class="ti ti-map-pin"></i>Mark this spot</div>
+  <div class="ctx-item" onclick="ctxCopyCoords()"><i class="ti ti-copy"></i>Copy coordinates</div>
+  <div class="ctx-item" onclick="ctxOpenMaps()"><i class="ti ti-external-link"></i>Open in Google Maps</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" onclick="ctxStartRoute()"><i class="ti ti-route"></i>Start route from here</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" onclick="closeCtx()"><i class="ti ti-x"></i>Cancel</div>
+</div>
 
-  <script>
-    // ---------- DARK MAP ----------
-    const map = L.map('map', { zoomControl: false }).setView([20, 0], 2);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '© OpenStreetMap, © CARTO',
-      maxZoom: 19
-    }).addTo(map);
-    L.control.zoom({ position: 'topright' }).addTo(map);
+<!-- MARK MODAL -->
+<div id="modal-overlay">
+  <div id="modal">
+    <h3>Mark location</h3>
+    <div class="form-group">
+      <label class="form-label">Name</label>
+      <input class="form-input" id="m-name" type="text" placeholder="e.g. Student home, Shop…"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Category</label>
+      <div class="category-grid" id="cat-grid">
+        <div class="cat-btn selected" data-cat="house" onclick="selectCat(this)">🏠 House</div>
+        <div class="cat-btn" data-cat="student" onclick="selectCat(this)">👤 Student</div>
+        <div class="cat-btn" data-cat="school" onclick="selectCat(this)">🏫 School</div>
+        <div class="cat-btn" data-cat="shop" onclick="selectCat(this)">🛒 Shop</div>
+        <div class="cat-btn" data-cat="landmark" onclick="selectCat(this)">📍 Landmark</div>
+        <div class="cat-btn" data-cat="other" onclick="selectCat(this)">🏷️ Other</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Note</label>
+      <textarea class="form-input" id="m-note" rows="2" placeholder="Blue gate, near junction…" style="resize:none"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Phone (optional)</label>
+      <input class="form-input" id="m-phone" type="tel" placeholder="+91 98…"/>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="saveLocation()">Save</button>
+    </div>
+  </div>
+</div>
 
-    // ---------- STATE (generic naming) ----------
-    let currentPosition = null;
-    let youMarker = null;
-    let currentRouteCoords = [];
-    let recording = false;
+<!-- DIRECTIONS PANEL -->
+<div id="dir-modal">
+  <div id="dir-header">
+    <h3 id="dir-title">Directions</h3>
+    <button class="icon-btn" onclick="document.getElementById('dir-modal').classList.remove('open')"><i class="ti ti-x"></i></button>
+  </div>
+  <div id="dir-steps"></div>
+</div>
 
-    // All marked locations (houses, students, etc.)
-    let locations = JSON.parse(localStorage.getItem('mappedLocations') || '[]');
-    const markersLayer = L.layerGroup().addTo(map);
-    const routeLine = L.polyline([], { color: '#7c3aed', weight: 5, dashArray: '10, 10' }).addTo(map);
+<!-- TOAST -->
+<div id="toast"><i class="ti ti-check" id="toast-icon"></i><span id="toast-msg">Done</span></div>
 
-    // Generic toast
-    function toast(msg, duration = 2500) {
-      const t = document.getElementById('toast');
-      t.textContent = msg;
-      t.classList.remove('hidden', 'opacity-0');
-      t.classList.add('opacity-100');
-      setTimeout(() => {
-        t.classList.add('opacity-0');
-        setTimeout(() => t.classList.add('hidden'), 500);
-      }, duration);
-    }
+<!-- BOTTOM TOOLBAR -->
+<div id="toolbar">
+  <div id="toolbar-actions">
+    <div class="tb-btn primary" onclick="openMarkModal()" title="Mark current location">
+      <i class="ti ti-map-pin-plus"></i>Mark
+    </div>
+    <div class="tb-btn" id="btn-panel" onclick="togglePanel()" title="Location list">
+      <i class="ti ti-layout-list"></i>List
+    </div>
+    <div class="tb-btn success" id="btn-start-route" onclick="startRoute()" title="Start route recording">
+      <i class="ti ti-route"></i>Record
+    </div>
+    <div class="tb-btn" id="btn-stop-route" onclick="stopRoute()" disabled title="Finish route">
+      <i class="ti ti-player-stop"></i>Stop
+    </div>
+    <div class="tb-btn" onclick="centerMe()" title="Center on me">
+      <i class="ti ti-current-location"></i>Center
+    </div>
+    <div class="tb-btn" onclick="startMeasure()" title="Measure distance">
+      <i class="ti ti-ruler-measure"></i>Measure
+    </div>
+    <div class="tb-btn" onclick="fitAll()" title="Fit all markers">
+      <i class="ti ti-arrows-maximize"></i>Fit all
+    </div>
+    <div class="tb-btn" onclick="toggleHeatmap()" id="btn-heat" title="Toggle heatmap">
+      <i class="ti ti-circles-relation"></i>Heatmap
+    </div>
+    <div class="tb-btn danger" onclick="clearAll()" title="Clear data">
+      <i class="ti ti-trash"></i>Clear
+    </div>
+  </div>
+  <div id="toolbar-meta">
+    <span><i class="ti ti-map-pin" style="font-size:12px;color:var(--accent)"></i><b id="meta-count" style="color:var(--text)">0</b> locations</span>
+    <span id="route-meta" style="display:none;color:var(--red)"><i class="ti ti-record-mail" style="font-size:12px"></i> Recording…  <b id="route-pts">0</b> pts</span>
+    <span><i class="ti ti-road" style="font-size:12px;color:var(--green)"></i><b id="meta-routes" style="color:var(--text)">0</b> routes</span>
+  </div>
+</div>
 
-    // ---------- GEOLOCATION ----------
-    if (!navigator.geolocation) {
-      toast('Geolocation not supported', 4000);
+<script>
+// ─────────── MAP SETUP ───────────
+const tileLayers = {
+  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CARTO',maxZoom:19}),
+  sat:  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:19}),
+  osm:  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM',maxZoom:19})
+};
+
+const map = L.map('map',{zoomControl:false,contextmenu:false}).setView([10.0, 76.5],13);
+tileLayers.dark.addTo(map);
+L.control.zoom({position:'topright'}).addTo(map);
+
+function switchMap(type){
+  Object.values(tileLayers).forEach(l=>map.removeLayer(l));
+  tileLayers[type].addTo(map);
+  document.querySelectorAll('.map-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`.map-btn[onclick*="${type}"]`).classList.add('active');
+}
+
+// ─────────── STATE ───────────
+let currentPos = null;
+let youMarker = null;
+let recording = false;
+let routeCoords = [];
+let routeLine = L.polyline([],{color:'#7c3aed',weight:4,opacity:.85,dashArray:'8,6'}).addTo(map);
+let markersLayer = L.layerGroup().addTo(map);
+let measuring = false;
+let measurePts = [];
+let measureLine = null;
+let measureMarkers = [];
+let ctxLatLng = null;
+let currentFilter = 'all';
+let activeTab = 'list';
+let heatmapOn = false;
+let pendingMarkLatLng = null;
+let selectedCat = 'house';
+let routeInterval = null;
+let recordStartTime = null;
+
+let locations = JSON.parse(localStorage.getItem('lmp-v2') || '[]');
+
+const catColors = {
+  house:'#7c3aed',student:'#3b82f6',school:'#10b981',
+  shop:'#f59e0b',landmark:'#ef4444',other:'#06b6d4'
+};
+const catIcons = {
+  house:'ti-home',student:'ti-user',school:'ti-building',
+  shop:'ti-shopping-bag',landmark:'ti-map-pin',other:'ti-tag'
+};
+
+// ─────────── GEOLOCATION ───────────
+function startGPS(){
+  if(!navigator.geolocation){toast('GPS not supported','error');return}
+  const dot = document.getElementById('gps-dot');
+  const lbl = document.getElementById('gps-label');
+  dot.className = 'searching';
+  lbl.textContent = 'Searching…';
+
+  navigator.geolocation.watchPosition(pos=>{
+    const {latitude:lat,longitude:lng,accuracy:acc} = pos.coords;
+    currentPos = {lat,lng};
+    dot.className = 'active';
+    lbl.textContent = Math.round(acc)+'m';
+    document.getElementById('acc-val').textContent = Math.round(acc)+'m';
+
+    if(!youMarker){
+      youMarker = L.circleMarker([lat,lng],{
+        radius:9,color:'#f43f5e',fillColor:'#f43f5e',fillOpacity:.95,
+        weight:2,className:'you-marker'
+      }).addTo(map).bindPopup('<b style="font-size:12px">📍 You are here</b>');
+      map.setView([lat,lng],16);
     } else {
-      navigator.geolocation.watchPosition(pos => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        currentPosition = { lat: latitude, lng: longitude };
-        document.getElementById('accuracy').textContent = Math.round(accuracy) + 'm';
-
-        if (!youMarker) {
-          youMarker = L.circleMarker([latitude, longitude], {
-            radius: 8, color: '#f43f5e', fillColor: '#f43f5e', fillOpacity: 0.9
-          }).addTo(map).bindPopup('You are here');
-        } else {
-          youMarker.setLatLng([latitude, longitude]);
-        }
-        map.setView([latitude, longitude], 17, { animate: false });
-
-        if (recording) {
-          currentRouteCoords.push([latitude, longitude]);
-          routeLine.setLatLngs(currentRouteCoords);
-        }
-      }, err => toast('Location error: ' + err.message, 4000), {
-        enableHighAccuracy: true, maximumAge: 1000, timeout: 15000
-      });
+      youMarker.setLatLng([lat,lng]);
     }
+    if(recording){
+      routeCoords.push([lat,lng]);
+      routeLine.setLatLngs(routeCoords);
+      document.getElementById('route-pts').textContent = routeCoords.length;
+    }
+  }, err=>{
+    dot.className = '';
+    lbl.textContent = 'Error';
+    toast('GPS: '+err.message,'error');
+  },{enableHighAccuracy:true,maximumAge:1500,timeout:20000});
+}
+startGPS();
 
-    // ---------- MARK ANY LOCATION ----------
-    document.getElementById('mark-location').addEventListener('click', () => {
-      if (!currentPosition) return toast('No GPS fix yet');
-      const name = prompt('Location name (e.g., "Student Ali", "Café"):', 'Point ' + (locations.length + 1));
-      if (!name) return;
-      const note = prompt('Extra note (e.g., "house on east side", "blue door"):', '');
-      const newLoc = {
-        id: Date.now(),
-        name,
-        note: note || '',
-        lat: currentPosition.lat,
-        lng: currentPosition.lng,
-        route: []   // will be filled after recording
-      };
-      locations.push(newLoc);
-      saveLocations();
-      renderAll();
-      toast(`"${name}" marked!`);
+function centerMe(){
+  if(currentPos) map.setView([currentPos.lat,currentPos.lng],17,{animate:true});
+  else toast('No GPS fix yet','error');
+}
+
+// ─────────── MARK LOCATION ───────────
+function openMarkModal(latlng=null){
+  pendingMarkLatLng = latlng;
+  document.getElementById('m-name').value = '';
+  document.getElementById('m-note').value = '';
+  document.getElementById('m-phone').value = '';
+  selectedCat = 'house';
+  document.querySelectorAll('.cat-btn').forEach(b=>{
+    b.classList.toggle('selected', b.dataset.cat==='house');
+  });
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('m-name').focus(),100);
+}
+
+function closeModal(){
+  document.getElementById('modal-overlay').classList.remove('open');
+  pendingMarkLatLng = null;
+}
+
+function selectCat(el){
+  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedCat = el.dataset.cat;
+}
+
+function saveLocation(){
+  const pos = pendingMarkLatLng || currentPos;
+  if(!pos){toast('No GPS fix yet','error');closeModal();return}
+  const name = document.getElementById('m-name').value.trim() || ('Point '+(locations.length+1));
+  const note = document.getElementById('m-note').value.trim();
+  const phone = document.getElementById('m-phone').value.trim();
+  const loc = {
+    id:Date.now(), name, note, phone,
+    cat:selectedCat,
+    lat:pos.lat||pos[0], lng:pos.lng||pos[1],
+    route:[], timestamp:new Date().toISOString()
+  };
+  locations.push(loc);
+  save(); renderAll();
+  closeModal();
+  toast(`"${name}" saved!`,'success');
+}
+
+// ─────────── ROUTE RECORDING ───────────
+function startRoute(){
+  if(!currentPos){toast('No GPS fix','error');return}
+  if(recording){toast('Already recording','info');return}
+  recording=true;
+  routeCoords=[[currentPos.lat,currentPos.lng]];
+  routeLine.setLatLngs(routeCoords);
+  recordStartTime = Date.now();
+  document.getElementById('btn-start-route').classList.add('recording');
+  document.getElementById('btn-stop-route').removeAttribute('disabled');
+  document.getElementById('route-meta').style.display='flex';
+  toast('Recording started','info');
+}
+
+function stopRoute(){
+  if(!recording)return;
+  recording=false;
+  document.getElementById('btn-start-route').classList.remove('recording');
+  document.getElementById('btn-stop-route').setAttribute('disabled','');
+  document.getElementById('route-meta').style.display='none';
+
+  if(locations.length===0){toast('Mark a location first!','error');routeLine.setLatLngs([]);routeCoords=[];return}
+  const last = locations[locations.length-1];
+  const dur = Math.round((Date.now()-recordStartTime)/1000);
+  const dist = calcRouteDist(routeCoords);
+  last.route=[...routeCoords];
+  last.routeDist = dist;
+  last.routeDur = dur;
+  save(); renderAll();
+  routeCoords=[]; routeLine.setLatLngs([]);
+  toast(`Route saved: ${dist}m, ${dur}s`,'success');
+}
+
+function calcRouteDist(coords){
+  let d=0;
+  for(let i=1;i<coords.length;i++) d+=haversine(coords[i-1],coords[i]);
+  return Math.round(d);
+}
+
+// ─────────── RENDER MARKERS ───────────
+function renderAll(){
+  markersLayer.clearLayers();
+  const count = document.getElementById('meta-count');
+  const routeCount = document.getElementById('meta-routes');
+  let rc=0;
+  count.textContent = locations.length;
+  locations.forEach(loc=>{
+    if(loc.route.length) rc++;
+    const col = catColors[loc.cat]||'#7c3aed';
+    const icon = L.divIcon({
+      className:'',
+      html:`<div style="
+        width:30px;height:30px;border-radius:50% 50% 50% 0;
+        background:${col};border:2px solid rgba(255,255,255,.25);
+        transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;
+        box-shadow:0 2px 8px #0006;
+      "><div style="transform:rotate(45deg);font-size:13px"><i class="ti ${catIcons[loc.cat]||'ti-map-pin'}" style="color:#fff"></i></div></div>`,
+      iconSize:[30,30],iconAnchor:[15,30],popupAnchor:[0,-32]
     });
+    const m = L.marker([loc.lat,loc.lng],{icon}).addTo(markersLayer);
+    m.bindPopup(makePopup(loc));
+    if(loc.route.length){
+      L.polyline(loc.route,{color:col,weight:3,opacity:.7,dashArray:'6,4'}).addTo(markersLayer);
+    }
+  });
+  routeCount.textContent=rc;
+  document.getElementById('loc-count').textContent=`${locations.length} saved`;
+  renderList();
+  renderStats();
+}
 
-    // ---------- ROUTE RECORDING ----------
-    document.getElementById('start-route').addEventListener('click', () => {
-      if (!currentPosition) return toast('No GPS fix');
-      if (recording) return toast('Already recording');
-      recording = true;
-      currentRouteCoords = [[currentPosition.lat, currentPosition.lng]];
-      routeLine.setLatLngs(currentRouteCoords);
-      document.getElementById('start-route').disabled = true;
-      document.getElementById('finish-route').disabled = false;
-      toast('Recording route...');
-    });
+function makePopup(loc){
+  const col=catColors[loc.cat]||'#7c3aed';
+  const dist=loc.routeDist?`${loc.routeDist}m`:'–';
+  return `<div style="min-width:160px">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      <div style="width:24px;height:24px;border-radius:6px;background:${col}22;border:1px solid ${col}55;display:flex;align-items:center;justify-content:center">
+        <i class="ti ${catIcons[loc.cat]||'ti-map-pin'}" style="color:${col};font-size:13px"></i>
+      </div>
+      <b style="font-size:12px">${esc(loc.name)}</b>
+    </div>
+    ${loc.note?`<div style="font-size:11px;color:#a9a8c0;margin-bottom:6px">${esc(loc.note)}</div>`:''}
+    ${loc.phone?`<div style="font-size:11px;margin-bottom:6px"><i class="ti ti-phone" style="font-size:12px;vertical-align:-2px"></i> <a href="tel:${loc.phone}" style="color:#3b82f6">${loc.phone}</a></div>`:''}
+    <div style="font-size:10px;color:#6b6a85;margin-bottom:8px;display:flex;gap:8px">
+      <span>${loc.route.length?'✅ Route: '+dist:'❌ No route'}</span>
+    </div>
+    <div style="display:flex;gap:4px">
+      ${loc.route.length?`<button onclick="showDirections(${loc.id})" style="flex:1;padding:4px;border-radius:6px;background:#7c3aed22;border:1px solid #7c3aed55;color:#7c3aed;font-size:10px;cursor:pointer;font-family:inherit"><i class="ti ti-route" style="font-size:11px"></i> Directions</button>`:''}
+      ${loc.phone?`<button onclick="window.open('tel:${loc.phone}')" style="flex:1;padding:4px;border-radius:6px;background:#3b82f622;border:1px solid #3b82f655;color:#3b82f6;font-size:10px;cursor:pointer;font-family:inherit"><i class="ti ti-phone" style="font-size:11px"></i> Call</button>`:''}
+    </div>
+  </div>`;
+}
 
-    document.getElementById('finish-route').addEventListener('click', () => {
-      if (!recording) return;
-      recording = false;
-      document.getElementById('start-route').disabled = false;
-      document.getElementById('finish-route').disabled = true;
+// ─────────── LIST ───────────
+function renderList(){
+  const q = (document.getElementById('search-input').value||'').toLowerCase();
+  const div = document.getElementById('location-list');
+  let filtered = locations.filter(l=>{
+    if(currentFilter==='routed') return l.route.length>0;
+    if(currentFilter!=='all') return l.cat===currentFilter;
+    return true;
+  }).filter(l=>{
+    if(!q)return true;
+    return l.name.toLowerCase().includes(q)||
+           (l.note||'').toLowerCase().includes(q)||
+           (l.phone||'').includes(q);
+  });
 
-      if (locations.length === 0) {
-        toast('Mark a location first!');
-        routeLine.setLatLngs([]);
-        currentRouteCoords = [];
-        return;
+  if(!filtered.length){
+    div.innerHTML=`<div class="empty-state"><i class="ti ti-map-search"></i><span>No locations found</span></div>`;
+    return;
+  }
+  div.innerHTML='';
+  filtered.forEach(loc=>{
+    const col=catColors[loc.cat]||'#7c3aed';
+    const el=document.createElement('div');
+    el.className='loc-item';
+    el.innerHTML=`
+      <div class="loc-icon" style="background:${col}18;border:1px solid ${col}33">
+        <i class="ti ${catIcons[loc.cat]||'ti-map-pin'}" style="color:${col}"></i>
+      </div>
+      <div class="loc-body">
+        <div class="loc-name">${esc(loc.name)}</div>
+        <div class="loc-meta">${loc.note?esc(loc.note).slice(0,40):'No note'} ${loc.phone?'· '+loc.phone:''}</div>
+        <div class="loc-tags">
+          <span class="loc-tag">${loc.cat}</span>
+          ${loc.route.length?`<span class="loc-tag has-route">✓ route ${loc.routeDist?loc.routeDist+'m':''}</span>`:`<span class="loc-tag no-route">no route</span>`}
+        </div>
+      </div>
+      <div class="loc-actions">
+        <button class="icon-btn" onclick="flyTo(${loc.id})" title="View on map"><i class="ti ti-eye"></i></button>
+        ${loc.route.length?`<button class="icon-btn" onclick="showDirections(${loc.id})" title="Directions"><i class="ti ti-route"></i></button>`:''}
+        <button class="icon-btn danger" onclick="deleteLoc(${loc.id})" title="Delete"><i class="ti ti-trash"></i></button>
+      </div>
+    `;
+    div.appendChild(el);
+  });
+}
+
+function flyTo(id){
+  const loc=locations.find(l=>l.id==id);
+  if(!loc)return;
+  map.flyTo([loc.lat,loc.lng],18,{duration:.8});
+  closePanel();
+}
+
+function deleteLoc(id){
+  if(!confirm('Delete this location?'))return;
+  locations=locations.filter(l=>l.id!=id);
+  save(); renderAll();
+  toast('Deleted','info');
+}
+
+// ─────────── STATS ───────────
+function renderStats(){
+  const cats={};
+  let routeCount=0, totalDist=0, totalDur=0;
+  locations.forEach(l=>{
+    cats[l.cat]=(cats[l.cat]||0)+1;
+    if(l.route.length){routeCount++;totalDist+=l.routeDist||0;totalDur+=l.routeDur||0;}
+  });
+  document.getElementById('stats-grid').innerHTML=`
+    <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value">${locations.length}</div><div class="stat-sub">locations</div></div>
+    <div class="stat-card"><div class="stat-label">Routes</div><div class="stat-value">${routeCount}</div><div class="stat-sub">recorded</div></div>
+    <div class="stat-card"><div class="stat-label">Distance</div><div class="stat-value">${totalDist>0?Math.round(totalDist/1000*10)/10:0}</div><div class="stat-sub">km total</div></div>
+    <div class="stat-card"><div class="stat-label">Avg time</div><div class="stat-value">${routeCount?Math.round(totalDur/routeCount):0}</div><div class="stat-sub">sec/route</div></div>
+  `;
+  const cc=document.getElementById('cat-chart');
+  if(!Object.keys(cats).length){cc.innerHTML='<div style="font-size:11px;color:var(--text3)">No data yet</div>';return;}
+  const max=Math.max(...Object.values(cats));
+  cc.innerHTML=Object.entries(cats).map(([c,n])=>{
+    const col=catColors[c]||'#7c3aed';
+    const pct=Math.round(n/max*100);
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <div style="width:64px;font-size:10px;color:var(--text2)">${c}</div>
+      <div style="flex:1;height:12px;background:var(--card);border-radius:6px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${col};border-radius:6px;transition:.3s"></div>
+      </div>
+      <div style="font-size:10px;color:var(--text2);min-width:16px">${n}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─────────── DIRECTIONS ───────────
+window.showDirections = function(id){
+  const loc=locations.find(l=>l.id==id);
+  if(!loc||!loc.route.length){toast('No route recorded','error');return}
+  const steps=generateSteps(loc.route,loc.note);
+  document.getElementById('dir-title').textContent='→ '+loc.name;
+  const stepsDiv=document.getElementById('dir-steps');
+  stepsDiv.innerHTML=steps.map((s,i)=>`
+    <div class="dir-step">
+      <div class="dir-num">${i+1}</div>
+      <div>
+        <div class="dir-text">${s.text}</div>
+        ${s.dist?`<div class="dir-dist">${Math.round(s.dist)}m</div>`:''}
+      </div>
+    </div>
+  `).join('');
+  document.getElementById('dir-modal').classList.add('open');
+};
+
+// ─────────── MEASURE ───────────
+function startMeasure(){
+  stopMeasure();
+  measuring=true;
+  measurePts=[];
+  document.getElementById('measure-bar').classList.add('open');
+  map.on('click',onMeasureClick);
+  toast('Click 2 points on map','info');
+}
+
+function stopMeasure(){
+  measuring=false;
+  map.off('click',onMeasureClick);
+  measurePts=[];
+  if(measureLine){map.removeLayer(measureLine);measureLine=null;}
+  measureMarkers.forEach(m=>map.removeLayer(m));
+  measureMarkers=[];
+  document.getElementById('measure-bar').classList.remove('open');
+  document.getElementById('measure-result').textContent='';
+}
+
+function onMeasureClick(e){
+  if(!measuring)return;
+  measurePts.push([e.latlng.lat,e.latlng.lng]);
+  const m=L.circleMarker([e.latlng.lat,e.latlng.lng],{radius:5,color:'#f59e0b',fillColor:'#f59e0b',fillOpacity:1}).addTo(map);
+  measureMarkers.push(m);
+  if(measurePts.length>=2){
+    if(measureLine)map.removeLayer(measureLine);
+    measureLine=L.polyline(measurePts,{color:'#f59e0b',weight:2,dashArray:'4,4'}).addTo(map);
+    const d=haversine(measurePts[0],measurePts[1]);
+    document.getElementById('measure-result').textContent = d<1000?Math.round(d)+'m':(d/1000).toFixed(2)+'km';
+    measurePts=[];
+    measureMarkers=[];
+  }
+}
+
+// ─────────── HEATMAP (CSS circle layers) ───────────
+let heatLayer=L.layerGroup();
+function toggleHeatmap(){
+  heatmapOn=!heatmapOn;
+  const btn=document.getElementById('btn-heat');
+  if(heatmapOn){
+    heatLayer=L.layerGroup().addTo(map);
+    locations.forEach(loc=>{
+      const col=catColors[loc.cat]||'#7c3aed';
+      for(let r=3;r>=1;r--){
+        L.circleMarker([loc.lat,loc.lng],{
+          radius:r*14,color:col,fillColor:col,fillOpacity:.04*(4-r),weight:0
+        }).addTo(heatLayer);
       }
-      // Attach route to the most recently added location
-      const lastLoc = locations[locations.length - 1];
-      lastLoc.route = [...currentRouteCoords];
-      saveLocations();
-      renderAll();
-      currentRouteCoords = [];
-      routeLine.setLatLngs([]);
-      toast(`Route saved to "${lastLoc.name}"`);
     });
+    btn.querySelector('i').style.color='var(--amber)';
+    toast('Heatmap on','info');
+  } else {
+    map.removeLayer(heatLayer);
+    btn.querySelector('i').style.color='';
+    toast('Heatmap off','info');
+  }
+}
 
-    // ---------- RENDER ----------
-    function renderAll() {
-      markersLayer.clearLayers();
-      const listDiv = document.getElementById('location-list');
-      listDiv.innerHTML = '';
+function fitAll(){
+  if(!locations.length){toast('No locations yet','info');return}
+  const bounds=L.latLngBounds(locations.map(l=>[l.lat,l.lng]));
+  if(youMarker) bounds.extend(youMarker.getLatLng());
+  map.fitBounds(bounds,{padding:[40,40]});
+}
 
-      locations.forEach(loc => {
-        // Map marker
-        const marker = L.marker([loc.lat, loc.lng])
-          .addTo(markersLayer)
-          .bindPopup(`
-            <div class="text-sm">
-              <b>${loc.name}</b><br>
-              <span class="text-gray-400">${loc.note || ''}</span><br>
-              ${loc.route.length ? `<button onclick="showDirections(${loc.id})" class="text-accent underline">Get directions</button>` : 'No route recorded'}
-            </div>
-          `);
+// ─────────── CONTEXT MENU ───────────
+map.on('contextmenu',e=>{
+  ctxLatLng={lat:e.latlng.lat,lng:e.latlng.lng};
+  const menu=document.getElementById('ctx-menu');
+  const mp=map.getContainer().getBoundingClientRect();
+  const cx=Math.min(e.originalEvent.clientX-mp.left, mp.width-170);
+  const cy=Math.min(e.originalEvent.clientY-mp.top, mp.height-180);
+  menu.style.left=cx+'px';
+  menu.style.top=cy+'px';
+  menu.classList.add('open');
+});
+map.on('click',()=>{closeCtx();});
 
-        // List entry (slide‑up panel)
-        const entry = document.createElement('div');
-        entry.className = 'flex items-center justify-between py-2 border-b border-gray-700 cursor-pointer hover:bg-gray-800 rounded px-2 transition-colors';
-        entry.innerHTML = `
-          <span>${loc.name} ${loc.route.length ? '✅' : '❌'}</span>
-          <span class="text-gray-400 text-xs">${loc.note ? '📝' : ''}</span>
-        `;
-        entry.onclick = () => {
-          map.setView([loc.lat, loc.lng], 18);
-          marker.openPopup();
-          closePanel();
-        };
-        listDiv.appendChild(entry);
-      });
+function closeCtx(){document.getElementById('ctx-menu').classList.remove('open')}
+function ctxMarkHere(){closeCtx();if(ctxLatLng)openMarkModal(ctxLatLng)}
+function ctxCopyCoords(){
+  if(!ctxLatLng)return;
+  navigator.clipboard?.writeText(`${ctxLatLng.lat.toFixed(6)}, ${ctxLatLng.lng.toFixed(6)}`);
+  toast('Coordinates copied','success');
+  closeCtx();
+}
+function ctxOpenMaps(){
+  if(!ctxLatLng)return;
+  window.open(`https://www.google.com/maps?q=${ctxLatLng.lat},${ctxLatLng.lng}`,'_blank');
+  closeCtx();
+}
+function ctxStartRoute(){
+  closeCtx();startRoute();
+}
 
-      if (locations.length === 0) {
-        listDiv.innerHTML = '<p class="text-gray-500 text-sm py-2">No locations yet. Use "Mark" to add one.</p>';
+// ─────────── PANEL / TAB ───────────
+let panelOpen=false;
+function togglePanel(){
+  panelOpen=!panelOpen;
+  document.getElementById('side-panel').classList.toggle('open',panelOpen);
+}
+function closePanel(){
+  panelOpen=false;
+  document.getElementById('side-panel').classList.remove('open');
+}
+document.getElementById('panel-close').onclick=closePanel;
+
+function switchTab(name){
+  activeTab=name;
+  document.querySelectorAll('.panel-tab').forEach((t,i)=>{
+    const names=['list','stats','export'];
+    t.classList.toggle('active',names[i]===name);
+  });
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+function setFilter(el,f){
+  currentFilter=f;
+  document.querySelectorAll('#filter-row .pill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  renderList();
+}
+
+// ─────────── EXPORT ───────────
+function exportJSON(){
+  dl(JSON.stringify(locations,null,2),'locations.json','application/json');
+  toast('JSON exported','success');
+}
+
+function exportCSV(){
+  const hdr='ID,Name,Category,Lat,Lng,Note,Phone,Route Points,Route Distance (m),Timestamp';
+  const rows=locations.map(l=>[l.id,q(l.name),l.cat,l.lat,l.lng,q(l.note||''),q(l.phone||''),l.route.length,l.routeDist||0,l.timestamp||''].join(','));
+  dl(hdr+'\n'+rows.join('\n'),'locations.csv','text/csv');
+  toast('CSV exported','success');
+}
+
+function exportGPX(){
+  const wpts=locations.map(l=>`<wpt lat="${l.lat}" lon="${l.lng}"><name>${esc(l.name)}</name><desc>${esc(l.note||'')}</desc></wpt>`).join('\n');
+  const trks=locations.filter(l=>l.route.length).map(l=>`<trk><name>${esc(l.name)}</name><trkseg>${l.route.map(r=>`<trkpt lat="${r[0]}" lon="${r[1]}"/>`).join('')}</trkseg></trk>`).join('\n');
+  dl(`<?xml version="1.0"?><gpx version="1.1" creator="LocationMapperPro" xmlns="http://www.topografix.com/GPX/1/1">${wpts}${trks}</gpx>`,'locations.gpx','application/gpx+xml');
+  toast('GPX exported','success');
+}
+
+function exportKML(){
+  const placemarks=locations.map(l=>`<Placemark><name>${esc(l.name)}</name><description>${esc(l.note||'')}</description><Point><coordinates>${l.lng},${l.lat},0</coordinates></Point></Placemark>`).join('');
+  dl(`<?xml version="1.0"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document>${placemarks}</Document></kml>`,'locations.kml','application/vnd.google-earth.kml+xml');
+  toast('KML exported','success');
+}
+
+function importJSON(input){
+  const file=input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!Array.isArray(data))throw new Error('Invalid format');
+      const merged=new Map(locations.map(l=>[l.id,l]));
+      data.forEach(l=>merged.set(l.id,l));
+      locations=[...merged.values()];
+      save(); renderAll();
+      toast(`Imported ${data.length} locations`,'success');
+    } catch(err){toast('Import failed: '+err.message,'error')}
+  };
+  reader.readAsText(file);
+  input.value='';
+}
+
+function dl(content,filename,type){
+  const blob=new Blob([content],{type});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function q(s){return '"'+String(s).replace(/"/g,'""')+'"'}
+
+// ─────────── CLEAR ───────────
+function clearAll(){
+  if(!confirm('Delete all locations and routes?'))return;
+  locations=[];save();renderAll();
+  routeLine.setLatLngs([]);
+  if(heatmapOn){map.removeLayer(heatLayer);heatmapOn=false;}
+  toast('All cleared','info');
+}
+
+// ─────────── HELPERS ───────────
+function save(){localStorage.setItem('lmp-v2',JSON.stringify(locations))}
+
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toast(msg,type='info',dur=2500){
+  const t=document.getElementById('toast');
+  const icons={success:'ti-check',error:'ti-alert-circle',info:'ti-info-circle'};
+  document.getElementById('toast-icon').className='ti '+icons[type];
+  document.getElementById('toast-msg').textContent=msg;
+  t.className='show '+type;
+  clearTimeout(t._t);
+  t._t=setTimeout(()=>t.className='',dur);
+}
+
+function toRad(d){return d*Math.PI/180}
+function toDeg(r){return r*180/Math.PI}
+function haversine(c1,c2){
+  const R=6371e3,φ1=toRad(c1[0]),φ2=toRad(c2[0]);
+  const Δφ=toRad(c2[0]-c1[0]),Δλ=toRad(c2[1]-c1[1]);
+  const a=Math.sin(Δφ/2)**2+Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function bearing(c1,c2){
+  const[lat1,lng1]=c1,[lat2,lng2]=c2;
+  const dLng=toRad(lng2-lng1);
+  const y=Math.sin(dLng)*Math.cos(toRad(lat2));
+  const x=Math.cos(toRad(lat1))*Math.sin(toRad(lat2))-Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(dLng);
+  return(toDeg(Math.atan2(y,x))+360)%360;
+}
+function angleDiff(a,b){let d=Math.abs(a-b)%360;return d>180?360-d:d}
+function bearingToDir(b){return['North','NE','East','SE','South','SW','West','NW'][Math.round(b/45)%8]}
+
+function generateSteps(coords,note){
+  if(coords.length<2)return[{text:'No movement recorded.'}];
+  const steps=[];
+  let segDist=0;
+  let prevBearing=bearing(coords[0],coords[1]);
+  let segStart=coords[0];
+
+  for(let i=1;i<coords.length;i++){
+    const d=haversine(coords[i-1],coords[i]);
+    segDist+=d;
+    const b=i<coords.length-1?bearing(coords[i-1],coords[i]):prevBearing;
+    const diff=angleDiff(prevBearing,b);
+    if(diff>30||i===coords.length-1){
+      if(segDist>1){
+        steps.push({text:`Walk ${Math.round(segDist)}m heading ${bearingToDir(prevBearing)}`,dist:segDist});
       }
+      prevBearing=b;
+      segDist=0;
     }
+  }
+  if(note) steps.push({text:'Destination: '+note});
+  else steps.push({text:'You have arrived'});
+  return steps;
+}
 
-    function saveLocations() {
-      localStorage.setItem('mappedLocations', JSON.stringify(locations));
-    }
+// ─────────── KEYBOARD SHORTCUTS ───────────
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
+  if(e.key==='m')openMarkModal();
+  if(e.key==='l')togglePanel();
+  if(e.key==='r')startRoute();
+  if(e.key==='s')stopRoute();
+  if(e.key==='f')fitAll();
+  if(e.key==='Escape'){closeModal();closePanel();closeCtx();stopMeasure();document.getElementById('dir-modal').classList.remove('open');}
+});
 
-    // ---------- DIRECTIONS (same bearing logic) ----------
-    window.showDirections = function(id) {
-      const loc = locations.find(l => l.id == id);
-      if (!loc || !loc.route.length) return toast('No route for this location.');
-      const steps = generateSteps(loc.route, loc.note);
-      alert('Directions to ' + loc.name + ':\n\n' + steps.join('\n'));
-    };
-
-    function generateSteps(coords, note) {
-      if (coords.length < 2) return ['No movement recorded.'];
-      const steps = [];
-      let totalDist = 0;
-      let prevBearing = bearing(coords[0], coords[1]);
-
-      for (let i = 1; i < coords.length; i++) {
-        const currBearing = bearing(coords[i-1], coords[i]);
-        const dist = haversine(coords[i-1], coords[i]);
-        totalDist += dist;
-        const diff = angleDiff(prevBearing, currBearing);
-        if (diff > 30 || i === coords.length - 1) {
-          const segLen = totalDist - (steps.reduce((s, st) => s + (st.dist||0), 0));
-          if (segLen > 1) {
-            steps.push({
-              text: `Walk ${Math.round(segLen)}m ${bearingToCardinal(prevBearing)}`,
-              dist: segLen
-            });
-          }
-          if (i < coords.length - 1) {
-            prevBearing = currBearing;
-            totalDist = dist;
-          }
-        }
-      }
-
-      const textSteps = steps.map(s => s.text);
-      if (note) textSteps.push('→ ' + note);
-      else textSteps.push('🏁 You have arrived.');
-      return textSteps;
-    }
-
-    // ---------- MATH HELPERS ----------
-    function toRad(d) { return d * Math.PI / 180; }
-    function toDeg(r) { return r * 180 / Math.PI; }
-    function bearing(c1, c2) {
-      const [lat1, lng1] = c1, [lat2, lng2] = c2;
-      const dLng = toRad(lng2 - lng1);
-      const y = Math.sin(dLng) * Math.cos(toRad(lat2));
-      const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
-                Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLng);
-      return (toDeg(Math.atan2(y, x)) + 360) % 360;
-    }
-    function haversine(c1, c2) {
-      const R = 6371e3, φ1 = toRad(c1[0]), φ2 = toRad(c2[0]);
-      const Δφ = toRad(c2[0] - c1[0]), Δλ = toRad(c2[1] - c1[1]);
-      const a = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    }
-    function angleDiff(a, b) {
-      let d = Math.abs(a - b) % 360;
-      return d > 180 ? 360 - d : d;
-    }
-    function bearingToCardinal(b) {
-      const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-      return dirs[Math.round(b / 45) % 8];
-    }
-
-    // ---------- PANEL TOGGLE ----------
-    const panel = document.getElementById('list-panel');
-    function openPanel() {
-      panel.classList.remove('hidden');
-      requestAnimationFrame(() => panel.classList.remove('translate-y-full'));
-    }
-    function closePanel() {
-      panel.classList.add('translate-y-full');
-      setTimeout(() => panel.classList.add('hidden'), 300);
-    }
-    document.getElementById('toggle-list').addEventListener('click', openPanel);
-    document.getElementById('close-panel').addEventListener('click', closePanel);
-
-    // ---------- DATA MANAGEMENT ----------
-    document.getElementById('clear-data').addEventListener('click', () => {
-      if (confirm('Delete all saved locations and routes?')) {
-        locations = [];
-        saveLocations();
-        renderAll();
-        toast('All data cleared');
-      }
-    });
-
-    document.getElementById('export-data').addEventListener('click', () => {
-      const blob = new Blob([JSON.stringify(locations, null, 2)], {type: 'application/json'});
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'location-mapper-data.json';
-      a.click();
-      URL.revokeObjectURL(a.href);
-      toast('Data exported');
-    });
-
-    // Initial render
-    renderAll();
-  </script>
+// ─────────── INIT ───────────
+renderAll();
+</script>
 </body>
 </html>
