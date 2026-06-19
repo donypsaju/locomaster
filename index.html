@@ -3,1318 +3,357 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<meta name="mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<title>Location Mapper Pro</title>
+<title>Census Layout Mapper</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
+
 <style>
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-:root{
-  --bg:#0d0d1a;--surface:#13131f;--card:#1a1a2e;--card2:#1f1f35;
-  --border:#ffffff14;--border2:#ffffff22;
-  --accent:#7c3aed;--accent2:#6d28d9;--accent-glow:#7c3aed33;
-  --text:#f1f0f8;--text2:#a9a8c0;--text3:#6b6a85;
-  --green:#10b981;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;
-  --font:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
-  --header-h:52px;--toolbar-h:72px;
-}
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);touch-action:manipulation}
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { height: 100vh; display: flex; flex-direction: column; background: #f8f9fa; }
+    
+    /* High-contrast UI for field work */
+    #map { flex: 1; z-index: 1; }
+    
+    #toolbar {
+        background: #ffffff; border-top: 2px solid #dee2e6; z-index: 1000;
+        display: flex; gap: 8px; padding: 12px; overflow-x: auto; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .btn {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        background: #f1f3f5; border: 1px solid #ced4da; border-radius: 8px;
+        min-width: 70px; padding: 10px 8px; font-size: 11px; font-weight: 600;
+        color: #495057; cursor: pointer; transition: 0.1s;
+    }
+    .btn i { font-size: 22px; margin-bottom: 4px; color: #228be6; }
+    .btn.active { background: #e7f5ff; border-color: #339af0; color: #1864ab; }
+    .btn.active i { color: #1864ab; }
+    .btn.danger i { color: #fa5252; }
 
-/* ── MAP ── */
-#map{position:absolute;inset:0;z-index:0}
-.leaflet-control-attribution{background:rgba(0,0,0,.7)!important;color:#555!important;font-size:9px!important}
-.leaflet-popup-content-wrapper{background:var(--card);border:1px solid var(--border2);border-radius:12px;box-shadow:0 8px 32px #0008;color:var(--text)}
-.leaflet-popup-tip{background:var(--card)}
-.leaflet-popup-content{margin:10px 12px;font-family:var(--font);font-size:12px}
-.leaflet-bar a{background:var(--card)!important;color:var(--text)!important;border-color:var(--border2)!important;width:30px!important;height:30px!important;line-height:30px!important}
-.leaflet-control-zoom{top:4px!important}
+    /* Census Specific Marker CSS */
+    .census-marker { display: flex; align-items: center; justify-content: center; }
+    
+    /* Pucca: Square */
+    .shape-pucca { width: 18px; height: 18px; border: 2px solid #000; background: #fff; }
+    .shape-pucca.non-res { background: #868e96; } /* Shaded */
+    
+    /* Kutcha: Triangle */
+    .shape-kutcha {
+        width: 0; height: 0; 
+        border-left: 10px solid transparent; border-right: 10px solid transparent; 
+        border-bottom: 18px solid #000; position: relative;
+    }
+    .shape-kutcha::after {
+        content: ''; position: absolute;
+        top: 2px; left: -7px;
+        border-left: 7px solid transparent; border-right: 7px solid transparent; 
+        border-bottom: 13px solid #fff;
+    }
+    .shape-kutcha.non-res::after { border-bottom-color: #868e96; } /* Shaded */
+    
+    /* Institution / Generic */
+    .shape-inst { width: 18px; height: 18px; border-radius: 50%; background: #fab005; border: 2px solid #000; }
 
-/* ── HEADER ── */
-#header{
-  position:absolute;top:0;left:0;right:0;height:var(--header-h);
-  background:rgba(13,13,26,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border-bottom:1px solid var(--border);z-index:200;
-  display:flex;align-items:center;padding:0 12px;gap:8px;
-}
-#header .logo{font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;white-space:nowrap}
-#header .logo i{color:var(--accent);font-size:18px}
-.hbadge{background:var(--accent-glow);border:1px solid var(--accent);color:var(--accent);font-size:9px;padding:1px 6px;border-radius:20px}
-#header .spacer{flex:1}
-#gps-pill{
-  display:flex;align-items:center;gap:5px;
-  background:var(--card);border:1px solid var(--border2);
-  border-radius:20px;padding:4px 10px;font-size:10px;color:var(--text3);
-  white-space:nowrap;cursor:pointer;
-}
-#gps-dot{width:6px;height:6px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:background .3s}
-#gps-dot.active{background:var(--green);box-shadow:0 0 5px var(--green)}
-#gps-dot.searching{background:var(--amber);animation:blink 1s infinite}
-#gps-dot.poor{background:var(--red)}
+    /* Labels */
+    .map-label { background: transparent; border: none; box-shadow: none; font-weight: bold; font-size: 12px; color: #000; text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff; }
 
-/* walk badge */
-#walk-badge{
-  display:none;align-items:center;gap:4px;
-  background:#10b98122;border:1px solid #10b98155;
-  border-radius:20px;padding:4px 9px;font-size:10px;color:var(--green);
-}
-#walk-badge.show{display:flex;animation:fadeIn .3s}
+    /* Status Bar */
+    #status {
+        position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+        background: #343a40; color: #fff; padding: 8px 16px; border-radius: 20px;
+        font-size: 13px; font-weight: bold; z-index: 1000; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
 
-/* ── MAP TYPE ── */
-#map-type{
-  position:absolute;top:calc(var(--header-h) + 8px);right:42px;
-  z-index:150;display:flex;gap:3px;
-}
-.mt-btn{
-  background:var(--card);border:1px solid var(--border2);border-radius:6px;
-  padding:4px 8px;font-size:10px;color:var(--text2);cursor:pointer;transition:.15s;
-}
-.mt-btn.active{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
-
-/* ── TOOLBAR ── */
-#toolbar{
-  position:absolute;bottom:0;left:0;right:0;
-  background:rgba(13,13,26,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border-top:1px solid var(--border);z-index:200;
-  padding:8px 10px;padding-bottom:calc(8px + env(safe-area-inset-bottom));
-}
-#tb-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
-#tb-row::-webkit-scrollbar{display:none}
-.tb{
-  display:flex;flex-direction:column;align-items:center;gap:2px;
-  background:var(--card);border:1px solid var(--border2);border-radius:11px;
-  padding:7px 10px;min-width:54px;flex-shrink:0;cursor:pointer;
-  transition:.15s;color:var(--text);font-size:9px;white-space:nowrap;
-  -webkit-user-select:none;user-select:none;
-}
-.tb i{font-size:19px;color:var(--text2)}
-.tb:active{transform:scale(.95);background:var(--card2)}
-.tb.accent i{color:var(--accent)}
-.tb.g i{color:var(--green)}
-.tb.r i{color:var(--red)}
-.tb.a i{color:var(--amber)}
-.tb.recording{background:#ef444418;border-color:#ef444450;animation:pulseborder 1s infinite}
-.tb.recording i{color:var(--red)}
-.tb[disabled]{opacity:.38;pointer-events:none}
-#tb-meta{display:flex;align-items:center;justify-content:space-between;margin-top:6px;padding:0 2px;font-size:10px;color:var(--text3)}
-#tb-meta span{display:flex;align-items:center;gap:3px}
-#tb-meta b{color:var(--text)}
-
-/* ── SLIDE PANEL ── */
-#panel{
-  position:absolute;top:var(--header-h);bottom:var(--toolbar-h);right:0;
-  width:min(310px,100vw);
-  background:var(--surface);border-left:1px solid var(--border2);
-  z-index:190;display:flex;flex-direction:column;
-  transform:translateX(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);
-}
-#panel.open{transform:translateX(0)}
-#panel-head{
-  padding:12px 14px;border-bottom:1px solid var(--border);
-  background:var(--card);display:flex;align-items:center;justify-content:space-between;
-}
-#panel-head h2{font-size:12px;font-weight:600}
-#panel-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface)}
-.ptab{flex:1;padding:8px 4px;text-align:center;font-size:10px;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:.15s}
-.ptab.active{color:var(--accent);border-bottom-color:var(--accent)}
-.tpane{display:none;flex:1;flex-direction:column;overflow-y:auto}
-.tpane.on{display:flex}
-
-/* search */
-#psearch{padding:8px 10px;border-bottom:1px solid var(--border)}
-#sinput{
-  width:100%;background:var(--card);border:1px solid var(--border2);
-  border-radius:8px;padding:6px 8px 6px 28px;
-  color:var(--text);font-size:11px;outline:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%236b6a85' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:8px center;
-}
-#sinput:focus{border-color:var(--accent)}
-
-/* filters */
-#filters{display:flex;gap:5px;padding:6px 8px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--border)}
-#filters::-webkit-scrollbar{display:none}
-.fpill{
-  background:var(--card);border:1px solid var(--border2);border-radius:16px;
-  padding:3px 9px;font-size:9px;color:var(--text2);cursor:pointer;white-space:nowrap;
-  transition:.15s;-webkit-user-select:none;user-select:none;
-}
-.fpill.on{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
-
-/* list items */
-.litem{padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:8px;align-items:flex-start;transition:.1s}
-.litem:active{background:var(--card)}
-.lico{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.lico i{font-size:15px}
-.lbody{flex:1;min-width:0}
-.lname{font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lmeta{font-size:9px;color:var(--text3);margin-top:1px}
-.ltags{display:flex;gap:3px;margin-top:3px;flex-wrap:wrap}
-.ltag{font-size:8px;padding:1px 5px;border-radius:8px;border:1px solid var(--border2);color:var(--text3)}
-.ltag.ok{border-color:#10b98144;color:var(--green)}
-.ltag.no{border-color:#ef444444;color:var(--red)}
-.lacts{display:flex;gap:3px;flex-shrink:0}
-.ico-btn{
-  background:none;border:1px solid var(--border);padding:4px;border-radius:6px;
-  cursor:pointer;color:var(--text3);font-size:13px;display:flex;align-items:center;transition:.1s;
-}
-.ico-btn:active{color:var(--text);background:var(--card2)}
-.ico-btn.del:active{color:var(--red)}
-
-/* stats */
-.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:10px}
-.scard{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:9px 11px}
-.slabel{font-size:8px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:3px}
-.sval{font-size:18px;font-weight:700;color:var(--text)}
-.ssub{font-size:9px;color:var(--text3);margin-top:1px}
-
-/* export tab */
-.etab{padding:10px;display:flex;flex-direction:column;gap:6px}
-.ebtn{
-  padding:8px 10px;border-radius:8px;border:1px solid var(--border2);
-  background:var(--card2);color:var(--text);font-size:11px;
-  cursor:pointer;display:flex;align-items:center;gap:6px;font-family:var(--font);transition:.15s;
-}
-.ebtn:active{opacity:.75}
-.ebtn.prime{background:var(--accent);border-color:var(--accent2);color:#fff}
-.ebtn.danger{border-color:#ef444444;color:var(--red)}
-.ediv{height:1px;background:var(--border);margin:2px 0}
-
-/* ── MODAL ── */
-#moverlay{
-  position:absolute;inset:0;background:#000000aa;z-index:300;
-  display:none;align-items:flex-end;justify-content:center;
-  padding-bottom:env(safe-area-inset-bottom);
-}
-#moverlay.open{display:flex}
-#modal{
-  background:var(--card);border:1px solid var(--border2);
-  border-radius:18px 18px 0 0;padding:18px 16px 20px;
-  width:100%;max-width:500px;max-height:90vh;overflow-y:auto;
-}
-#modal h3{font-size:14px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:6px}
-.mgroup{margin-bottom:11px}
-.mlabel{font-size:10px;color:var(--text2);margin-bottom:4px;display:block}
-.minput{
-  width:100%;background:var(--card2);border:1px solid var(--border2);
-  border-radius:8px;padding:9px 10px;color:var(--text);
-  font-size:13px;outline:none;font-family:var(--font);
-}
-.minput:focus{border-color:var(--accent)}
-.cgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:3px}
-.ccat{
-  padding:7px 4px;border-radius:8px;border:1px solid var(--border2);
-  background:var(--card2);color:var(--text2);font-size:10px;text-align:center;
-  cursor:pointer;transition:.15s;-webkit-user-select:none;user-select:none;
-}
-.ccat.on{border-color:var(--accent);background:var(--accent-glow);color:var(--accent)}
-.mbtns{display:flex;gap:8px;margin-top:14px}
-.mbtn{
-  flex:1;padding:10px;border-radius:9px;border:1px solid var(--border2);
-  background:var(--card2);color:var(--text);font-size:13px;
-  cursor:pointer;font-family:var(--font);transition:.1s;
-}
-.mbtn:active{opacity:.7}
-.mbtn.p{background:var(--accent);border-color:var(--accent2);color:#fff}
-
-/* ── DIRECTIONS ── */
-#dirpanel{
-  position:absolute;left:10px;right:10px;bottom:calc(var(--toolbar-h) + 8px);
-  background:var(--card);border:1px solid var(--border2);border-radius:14px;
-  z-index:180;padding:12px;display:none;max-height:240px;overflow-y:auto;
-}
-#dirpanel.open{display:block}
-#dirhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-#dirhead h3{font-size:12px;font-weight:600}
-.dstep{display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--border);font-size:10px}
-.dstep:last-child{border:none}
-.dnum{width:18px;height:18px;border-radius:50%;background:var(--accent-glow);border:1px solid var(--accent);color:var(--accent);font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.dtxt{color:var(--text);line-height:1.4}
-.ddist{font-size:9px;color:var(--text3);margin-top:1px}
-
-/* ── MEASURE BAR ── */
-#mbar{
-  position:absolute;top:calc(var(--header-h)+8px);left:10px;
-  background:var(--card);border:1px solid #f59e0b55;border-radius:10px;
-  padding:6px 10px;z-index:160;font-size:10px;
-  display:none;align-items:center;gap:8px;color:var(--amber);
-}
-#mbar.open{display:flex}
-
-/* ── WALK INDICATOR (big) ── */
-#walk-status{
-  position:absolute;top:calc(var(--header-h)+8px);left:50%;transform:translateX(-50%);
-  z-index:160;display:none;
-  background:var(--card);border:1px solid var(--border2);
-  border-radius:20px;padding:5px 14px;font-size:10px;
-  align-items:center;gap:6px;white-space:nowrap;
-}
-#walk-status.show{display:flex}
-#walk-icon{font-size:16px}
-#walk-text{color:var(--text2)}
-#walk-speed{color:var(--green);font-weight:600}
-#step-count{color:var(--amber)}
-
-/* ── CONTEXT MENU ── */
-#ctx{
-  position:absolute;z-index:250;background:var(--card2);border:1px solid var(--border2);
-  border-radius:11px;padding:4px;min-width:170px;display:none;box-shadow:0 8px 24px #0007;
-}
-#ctx.open{display:block}
-.cxi{padding:8px 10px;border-radius:8px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:7px;color:var(--text2);transition:.1s}
-.cxi:active{background:var(--card);color:var(--text)}
-.cxi i{font-size:15px}
-.cxi.d{color:#ef444466}
-.cxi.d:active{color:var(--red)}
-.cxsep{height:1px;background:var(--border);margin:3px 0}
-
-/* ── ACC CHIP ── */
-#acc{
-  position:absolute;top:calc(var(--header-h)+8px);right:10px;
-  background:var(--card);border:1px solid var(--border2);
-  border-radius:16px;padding:4px 10px;z-index:160;
-  font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px;
-}
-
-/* ── TOAST ── */
-#toast{
-  position:absolute;top:calc(var(--header-h)+10px);left:50%;transform:translateX(-50%);
-  background:var(--card);border:1px solid var(--border2);border-radius:20px;
-  padding:7px 14px;font-size:11px;z-index:400;white-space:nowrap;
-  opacity:0;pointer-events:none;transition:opacity .2s;display:flex;align-items:center;gap:5px;
-}
-#toast.on{opacity:1}
-#toast.s{border-color:#10b98155;color:var(--green)}
-#toast.e{border-color:#ef444455;color:var(--red)}
-#toast.i{border-color:var(--accent);color:var(--accent)}
-
-/* ── EMPTY ── */
-.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:20px;color:var(--text3);font-size:11px;text-align:center}
-.empty i{font-size:32px;opacity:.35}
-
-/* ── ANIMATIONS ── */
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-@keyframes pulseborder{0%,100%{border-color:#ef444450}50%{border-color:#ef4444cc}}
-@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-
-/* ── RESPONSIVE ── */
-@media(max-width:480px){
-  :root{--header-h:48px;--toolbar-h:68px}
-  #panel{width:100%;border-left:none;border-top:1px solid var(--border2);border-radius:16px 16px 0 0;top:auto;bottom:var(--toolbar-h);max-height:70vh}
-  #panel.open{transform:translateY(0)}
-  #panel{transform:translateY(100%)}
-  .tb{min-width:48px;padding:6px 8px}
-  .tb i{font-size:18px}
-  #modal{border-radius:18px 18px 0 0}
-}
-@media(min-width:481px){
-  #panel{top:var(--header-h);bottom:var(--toolbar-h);right:0;width:300px;border-left:1px solid var(--border2)}
-}
+    /* Modal */
+    #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 16px; }
+    #modal { background: #fff; width: 100%; max-width: 400px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: #495057; }
+    .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 6px; font-size: 14px; }
+    .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+    .btn-submit { flex: 1; padding: 12px; background: #228be6; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; }
+    .btn-cancel { flex: 1; padding: 12px; background: #f1f3f5; color: #495057; border: 1px solid #ced4da; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; }
 </style>
 </head>
 <body>
+
+<div id="status">Status Message</div>
 <div id="map"></div>
 
-<!-- HEADER -->
-<div id="header">
-  <div class="logo"><i class="ti ti-map-pin-filled"></i>Mapper Pro<span class="hbadge">v2</span></div>
-  <div class="spacer"></div>
-  <div id="walk-badge"><i class="ti ti-walk" style="font-size:13px"></i><span id="wbtext">Walking</span></div>
-  <div id="gps-pill" onclick="centerMe()" title="Tap to center">
-    <div id="gps-dot" class="searching"></div>
-    <span id="gps-lbl">Searching…</span>
-  </div>
-</div>
-
-<!-- MAP TYPE -->
-<div id="map-type">
-  <div class="mt-btn active" onclick="switchMap('dark')">Dark</div>
-  <div class="mt-btn" onclick="switchMap('sat')">Sat</div>
-  <div class="mt-btn" onclick="switchMap('osm')">Map</div>
-</div>
-
-<!-- ACC CHIP -->
-<div id="acc"><i class="ti ti-satellite" style="font-size:11px"></i><span id="acc-val">–</span></div>
-
-<!-- WALK STATUS BAR -->
-<div id="walk-status">
-  <span id="walk-icon">🚶</span>
-  <span id="walk-text">Walking</span>
-  <span id="walk-speed">–</span>
-  <span style="color:var(--text3)">·</span>
-  <span id="step-count">0 steps</span>
-</div>
-
-<!-- MEASURE BAR -->
-<div id="mbar">
-  <i class="ti ti-ruler"></i>
-  <span>Tap 2 points</span>
-  <span id="mresult" style="font-weight:600"></span>
-  <button class="ico-btn" onclick="stopMeasure()" style="border-color:#f59e0b44"><i class="ti ti-x"></i></button>
-</div>
-
-<!-- SIDE PANEL -->
-<div id="panel">
-  <div id="panel-head">
-    <h2><i class="ti ti-list-details" style="font-size:13px;vertical-align:-2px;margin-right:5px;color:var(--accent)"></i>Locations</h2>
-    <div style="display:flex;gap:5px;align-items:center">
-      <span id="pcount" style="font-size:10px;color:var(--text3)">0</span>
-      <button class="ico-btn" onclick="closePanel()"><i class="ti ti-x"></i></button>
-    </div>
-  </div>
-  <div id="panel-tabs">
-    <div class="ptab active" onclick="switchTab('list')">List</div>
-    <div class="ptab" onclick="switchTab('stats')">Stats</div>
-    <div class="ptab" onclick="switchTab('export')">Export</div>
-  </div>
-
-  <!-- LIST -->
-  <div class="tpane on" id="tab-list">
-    <div id="psearch"><input id="sinput" type="search" placeholder="Search…" oninput="renderList()"/></div>
-    <div id="filters">
-      <div class="fpill on" onclick="setFilter(this,'all')">All</div>
-      <div class="fpill" onclick="setFilter(this,'student')">👤 Student</div>
-      <div class="fpill" onclick="setFilter(this,'house')">🏠 House</div>
-      <div class="fpill" onclick="setFilter(this,'school')">🏫 School</div>
-      <div class="fpill" onclick="setFilter(this,'shop')">🛒 Shop</div>
-      <div class="fpill" onclick="setFilter(this,'other')">🏷️ Other</div>
-      <div class="fpill" onclick="setFilter(this,'routed')">✅ Routed</div>
-    </div>
-    <div id="loclist" style="flex:1;overflow-y:auto"></div>
-  </div>
-
-  <!-- STATS -->
-  <div class="tpane" id="tab-stats">
-    <div class="sgrid" id="sgrid"></div>
-    <div style="padding:0 10px 10px">
-      <div style="font-size:10px;color:var(--text3);margin-bottom:6px">By category</div>
-      <div id="catchart"></div>
-    </div>
-    <div style="padding:0 10px 10px;border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
-      <div style="font-size:10px;color:var(--text3);margin-bottom:6px">Walking sessions</div>
-      <div id="walklist" style="font-size:10px;color:var(--text2)"></div>
-    </div>
-  </div>
-
-  <!-- EXPORT -->
-  <div class="tpane" id="tab-export">
-    <div class="etab">
-      <div style="font-size:10px;color:var(--text3)">Export data</div>
-      <button class="ebtn prime" onclick="exportJSON()"><i class="ti ti-file-type-json"></i>Export JSON</button>
-      <button class="ebtn" onclick="exportCSV()"><i class="ti ti-table"></i>Export CSV</button>
-      <button class="ebtn" onclick="exportGPX()"><i class="ti ti-route"></i>Export GPX</button>
-      <button class="ebtn" onclick="exportKML()"><i class="ti ti-map"></i>Export KML</button>
-      <div class="ediv"></div>
-      <div style="font-size:10px;color:var(--text3)">Import</div>
-      <button class="ebtn" onclick="document.getElementById('ifile').click()"><i class="ti ti-upload"></i>Import JSON</button>
-      <input type="file" id="ifile" accept=".json" style="display:none" onchange="importJSON(this)"/>
-      <div class="ediv"></div>
-      <button class="ebtn danger" onclick="clearAll()"><i class="ti ti-trash"></i>Clear all data</button>
-    </div>
-  </div>
-</div>
-
-<!-- DIRECTIONS PANEL -->
-<div id="dirpanel">
-  <div id="dirhead">
-    <h3 id="dirtitle">Directions</h3>
-    <button class="ico-btn" onclick="document.getElementById('dirpanel').classList.remove('open')"><i class="ti ti-x"></i></button>
-  </div>
-  <div id="dirsteps"></div>
-</div>
-
-<!-- MARK MODAL -->
-<div id="moverlay">
-  <div id="modal">
-    <h3><i class="ti ti-map-pin-plus" style="color:var(--accent)"></i>Mark location</h3>
-    <div class="mgroup">
-      <label class="mlabel">Name</label>
-      <input class="minput" id="mname" type="text" placeholder="Student home, Shop…"/>
-    </div>
-    <div class="mgroup">
-      <label class="mlabel">Category</label>
-      <div class="cgrid">
-        <div class="ccat on" data-c="house" onclick="selCat(this)">🏠 House</div>
-        <div class="ccat" data-c="student" onclick="selCat(this)">👤 Student</div>
-        <div class="ccat" data-c="school" onclick="selCat(this)">🏫 School</div>
-        <div class="ccat" data-c="shop" onclick="selCat(this)">🛒 Shop</div>
-        <div class="ccat" data-c="landmark" onclick="selCat(this)">📍 Mark</div>
-        <div class="ccat" data-c="other" onclick="selCat(this)">🏷️ Other</div>
-      </div>
-    </div>
-    <div class="mgroup">
-      <label class="mlabel">Note</label>
-      <textarea class="minput" id="mnote" rows="2" placeholder="Blue gate, near church…" style="resize:none"></textarea>
-    </div>
-    <div class="mgroup">
-      <label class="mlabel">Phone (optional)</label>
-      <input class="minput" id="mphone" type="tel" placeholder="+91 98…"/>
-    </div>
-    <div class="mbtns">
-      <button class="mbtn" onclick="closeModal()">Cancel</button>
-      <button class="mbtn p" onclick="saveLoc()">Save</button>
-    </div>
-  </div>
-</div>
-
-<!-- CONTEXT MENU -->
-<div id="ctx">
-  <div class="cxi" onclick="ctxMark()"><i class="ti ti-map-pin"></i>Mark this spot</div>
-  <div class="cxi" onclick="ctxCopy()"><i class="ti ti-copy"></i>Copy coordinates</div>
-  <div class="cxi" onclick="ctxGmaps()"><i class="ti ti-external-link"></i>Google Maps</div>
-  <div class="cxsep"></div>
-  <div class="cxi" onclick="startRoute();closeCtx()"><i class="ti ti-route"></i>Start route here</div>
-  <div class="cxsep"></div>
-  <div class="cxi d" onclick="closeCtx()"><i class="ti ti-x"></i>Cancel</div>
-</div>
-
-<!-- TOAST -->
-<div id="toast"><i id="ticon" class="ti ti-check"></i><span id="tmsg"></span></div>
-
-<!-- TOOLBAR -->
 <div id="toolbar">
-  <div id="tb-row">
-    <div class="tb accent" onclick="openMarkModal()" title="Mark">
-      <i class="ti ti-map-pin-plus"></i>Mark
+    <button class="btn" id="btn-view" onclick="setMode('view')">
+        <i class="ti ti-hand-stop"></i>Pan / View
+    </button>
+    <button class="btn" id="btn-point" onclick="setMode('point')">
+        <i class="ti ti-home-plus"></i>Mark Bldg
+    </button>
+    <button class="btn" id="btn-line" onclick="setMode('line')">
+        <i class="ti ti-road"></i>Draw Road
+    </button>
+    <button class="btn" id="btn-arrow" onclick="setMode('arrow')">
+        <i class="ti ti-arrow-move-right"></i>Numbering
+    </button>
+    <button class="btn" onclick="exportData()">
+        <i class="ti ti-download"></i>Export
+    </button>
+    <button class="btn danger" onclick="clearData()">
+        <i class="ti ti-trash"></i>Clear
+    </button>
+</div>
+
+<div id="overlay">
+    <div id="modal">
+        <h3 style="margin-bottom: 15px; color: #212529;">Feature Details</h3>
+        
+        <div id="form-point" style="display: none;">
+            <div class="form-group">
+                <label>Building / Feature Type</label>
+                <select id="pt-type">
+                    <option value="pucca">Pucca Building</option>
+                    <option value="kutcha">Matcha/Kutcha Building</option>
+                    <option value="inst">Institution / Temple / Water</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Usage Category</label>
+                <select id="pt-subtype">
+                    <option value="res">Residential</option>
+                    <option value="non-res">Non-Residential</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Number / Name</label>
+                <input type="text" id="pt-name" placeholder="e.g. 101 or Panchayat Ghar">
+            </div>
+        </div>
+
+        <div id="form-line" style="display: none;">
+            <div class="form-group">
+                <label>Path Type</label>
+                <select id="ln-type">
+                    <option value="pucca-road">Pucca Road</option>
+                    <option value="kutcha-road">Kutcha Road</option>
+                    <option value="pathway">Pathway</option>
+                    <option value="railway">Railway Line</option>
+                    <option value="river">River / Canal</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Road / River Name (Optional)</label>
+                <input type="text" id="ln-name" placeholder="Main St...">
+            </div>
+        </div>
+
+        <div class="modal-btns">
+            <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+            <button class="btn-submit" onclick="saveFeature()">Save Feature</button>
+        </div>
     </div>
-    <div class="tb" onclick="togglePanel()" title="List">
-      <i class="ti ti-layout-list"></i>List
-    </div>
-    <div class="tb g" id="tbstart" onclick="startRoute()" title="Record route">
-      <i class="ti ti-route"></i>Record
-    </div>
-    <div class="tb r" id="tbstop" onclick="stopRoute()" disabled title="Stop">
-      <i class="ti ti-player-stop"></i>Stop
-    </div>
-    <div class="tb" onclick="centerMe()" title="Center">
-      <i class="ti ti-current-location"></i>Center
-    </div>
-    <div class="tb a" onclick="startMeasure()" title="Measure">
-      <i class="ti ti-ruler-measure"></i>Measure
-    </div>
-    <div class="tb" onclick="fitAll()" title="Fit all">
-      <i class="ti ti-arrows-maximize"></i>Fit all
-    </div>
-    <div class="tb" id="tbheat" onclick="toggleHeat()" title="Heatmap">
-      <i class="ti ti-circles-relation"></i>Heatmap
-    </div>
-  </div>
-  <div id="tb-meta">
-    <span><i class="ti ti-map-pin" style="font-size:11px;color:var(--accent)"></i><b id="mcount">0</b> locations</span>
-    <span id="recmeta" style="display:none;color:var(--red)"><i class="ti ti-record-mail" style="font-size:11px"></i>Rec <b id="rpts">0</b>pts</span>
-    <span><i class="ti ti-road" style="font-size:11px;color:var(--green)"></i><b id="rcount">0</b> routes</span>
-    <span id="walkdist" style="display:none"><i class="ti ti-walk" style="font-size:11px;color:var(--green)"></i><b id="wdist">0m</b></span>
-  </div>
 </div>
 
 <script>
-// ═══════════════════════════════════════════
-// MAP SETUP
-// ═══════════════════════════════════════════
-const tiles = {
-  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CARTO',maxZoom:22}),
-  sat:  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:19}),
-  osm:  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM',maxZoom:19})
-};
+// --- Initialization & State ---
+const map = L.map('map', { zoomControl: false }).setView([10.5, 76.2], 15);
+L.control.zoom({position: 'topright'}).addTo(map);
 
-const map = L.map('map',{
-  zoomControl:false,
-  maxZoom:22,
-  preferCanvas:true   // faster rendering for many points
-}).setView([10.5, 76.2],15);
+// Use OSM Base layer (can be swapped for offline tiles later)
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22 }).addTo(map);
 
-tiles.dark.addTo(map);
-L.control.zoom({position:'topright'}).addTo(map);
+// Data structure
+let features = JSON.parse(localStorage.getItem('census-data')) || [];
+let currentMode = 'view'; // 'view', 'point', 'line', 'arrow'
+let tempCoords = [];
+let tempLineLayer = null;
+let mapLayers = L.featureGroup().addTo(map);
 
-function switchMap(t){
-  Object.values(tiles).forEach(l=>l.remove());
-  tiles[t].addTo(map);
-  document.querySelectorAll('.mt-btn').forEach(b=>b.classList.remove('active'));
-  document.querySelector(`.mt-btn[onclick*="${t}"]`).classList.add('active');
-}
-
-// ═══════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════
-let pos      = null;   // {lat,lng,acc,speed,heading}
-let youMk    = null;   // your position marker
-let youCircle= null;   // accuracy circle
-let recording= false;
-let routePts = [];
-let routeLine= L.polyline([],{color:'#7c3aed',weight:4,opacity:.85,dashArray:'8,6'}).addTo(map);
-let mkLayer  = L.layerGroup().addTo(map);
-let measuring= false;
-let mPts     = [];
-let mLine    = null;
-let mMks     = [];
-let ctxLL    = null;
-let curFilter= 'all';
-let selCatV  = 'house';
-let pendLL   = null;
-let heatOn   = false;
-let heatLayer= null;
-
-// Walking detection state
-let walkState      = 'unknown'; // 'walking'|'stationary'|'unknown'
-let lastWalkPos    = null;
-let walkStartTime  = null;
-let sessionSteps   = 0;          // will be overwritten by sensor fusion
-let sessionDist    = 0;        // metres in current walk session
-let totalWalkDist  = 0;
-let walkSessions   = [];
-let prevSpeed      = 0;
-let walkHistoryBuf = []; // ring buffer of last N speeds
-const WALK_SPEED_MIN = 0.4;  // m/s  (~1.4 km/h) — threshold to count as walking
-const WALK_SPEED_MAX = 3.0;  // m/s  (~10.8 km/h) — cap for walking vs running/vehicle
-const WALK_BUF_SIZE  = 4;
-const STEP_LEN = 0.75; // fallback when no motion sensor
-
-// Sensor fusion variables
-let motionStepCount  = 0;      // steps counted from accelerometer
-let motionStepsStart = 0;      // count when current walk session began
-let accelMoving      = false;  // true if user shows dynamic movement
-let compassHeading   = null;   // from device orientation (0-360)
-let lastStepTime     = 0;
-
-let locations = JSON.parse(localStorage.getItem('lmp-v3')||'[]');
-
-const catCol = {house:'#7c3aed',student:'#3b82f6',school:'#10b981',shop:'#f59e0b',landmark:'#ef4444',other:'#06b6d4'};
-const catIco = {house:'ti-home',student:'ti-user',school:'ti-building',shop:'ti-shopping-bag',landmark:'ti-map-pin',other:'ti-tag'};
-
-// ═══════════════════════════════════════════
-// GPS PERMISSION & SUPPORT CHECK
-// ═══════════════════════════════════════════
-function initGPS(){
-  const dot = document.getElementById('gps-dot');
-  const lbl = document.getElementById('gps-lbl');
-
-  if (!navigator.geolocation) {
-    dot.className = 'poor';
-    lbl.textContent = 'No GPS hardware';
-    toast('No GPS – you can still mark locations manually', 'e', 5000);
-    return;
-  }
-
-  // Permissions API (if available) to check upfront
-  if (navigator.permissions) {
-    navigator.permissions.query({name:'geolocation'}).then(result => {
-      if (result.state === 'denied') {
-        dot.className = 'poor';
-        lbl.textContent = 'Denied – enable in settings';
-        toast('Location permission denied – check browser/OS settings', 'e', 6000);
-      } else if (result.state === 'prompt') {
-        dot.className = 'searching';
-        lbl.textContent = 'Waiting for permission…';
-        startGPS(); // will trigger prompt
-      } else {
-        startGPS(); // granted
-      }
-    }).catch(() => {
-      // Permissions API not supported, just start
-      startGPS();
-    });
-  } else {
-    startGPS();
-  }
-}
-
-// ═══════════════════════════════════════════
-// GPS — HIGH SENSITIVITY with error reasoning
-// ═══════════════════════════════════════════
-let lastPos = null;
-let watchId = null;
-
-function startGPS(){
-  if (!navigator.geolocation) return;
-  const dot   = document.getElementById('gps-dot');
-  const lbl   = document.getElementById('gps-lbl');
-  const accEl = document.getElementById('acc-val');
-  dot.className = 'searching';
-  lbl.textContent = 'Searching…';
-
-  const opts = {
-    enableHighAccuracy: true,
-    maximumAge: 0,       // never use cached position
-    timeout: 30000
-  };
-
-  watchId = navigator.geolocation.watchPosition(p => {
-    const {latitude:lat, longitude:lng, accuracy:acc, speed:spd, heading:hdg} = p.coords;
+// --- Mode Management ---
+function setMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('btn-' + mode)?.classList.add('active');
     
-    // Use compass heading if GPS heading null
-    let finalHeading = hdg;
-    if (finalHeading == null && compassHeading != null) {
-      finalHeading = compassHeading;
-    }
+    tempCoords = [];
+    if(tempLineLayer) map.removeLayer(tempLineLayer);
     
-    pos = {lat, lng, acc, speed: spd||0, heading: finalHeading};
-
-    // Filter jitter: ignore if accuracy > 50m AND position barely moved
-    if(acc > 50 && lastPos){
-      const d = haversine([lastPos.lat,lastPos.lng],[lat,lng]);
-      if(d < 2) return; // skip noisy update
-    }
-    lastPos = pos;
-
-    // GPS quality indicator
-    if(acc <= 8){ dot.className='active'; }
-    else if(acc <= 25){ dot.className='active'; dot.style.background='#f59e0b'; }
-    else { dot.className='poor'; }
-
-    accEl.textContent = Math.round(acc)+'m';
-    lbl.textContent   = Math.round(acc)+'m accuracy';
-
-    // Update your marker + accuracy circle
-    const ll = [lat,lng];
-    if(!youMk){
-      youMk = L.circleMarker(ll,{
-        radius:8, color:'#f43f5e', fillColor:'#f43f5e',
-        fillOpacity:.95, weight:2, zIndexOffset:1000
-      }).addTo(map).bindPopup('📍 You are here');
-      map.setView(ll, 18);
+    const status = document.getElementById('status');
+    if (mode === 'point') {
+        status.textContent = 'Tap map to place a building/marker';
+        status.style.display = 'block';
+    } else if (mode === 'line') {
+        status.textContent = 'Tap map to draw points. Click same point to finish.';
+        status.style.display = 'block';
+    } else if (mode === 'arrow') {
+        status.textContent = 'Tap path for numbering direction. Double tap to finish.';
+        status.style.display = 'block';
     } else {
-      youMk.setLatLng(ll);
+        status.style.display = 'none';
     }
-    // Accuracy circle
-    if(youCircle) map.removeLayer(youCircle);
-    youCircle = L.circle(ll,{radius:acc,color:'#f43f5e',fillColor:'#f43f5e',fillOpacity:.08,weight:1,dashArray:'4,4'}).addTo(map);
+}
 
-    // Auto-pan only when recording
-    if(recording){
-      map.panTo(ll,{animate:true,duration:.5});
+// --- Map Interaction Logic ---
+map.on('click', function(e) {
+    if (currentMode === 'view') return;
+
+    if (currentMode === 'point') {
+        openModal('point', [e.latlng.lat, e.latlng.lng]);
+        setMode('view'); // reset after tap
+    } 
+    else if (currentMode === 'line' || currentMode === 'arrow') {
+        // If clicking the same point (double click simulation), finish line
+        if (tempCoords.length > 0) {
+            const last = tempCoords[tempCoords.length - 1];
+            const dist = map.distance(last, e.latlng);
+            if (dist < 5) { 
+                if (currentMode === 'line') openModal('line', tempCoords);
+                if (currentMode === 'arrow') saveArrowPath(tempCoords);
+                return;
+            }
+        }
+        
+        tempCoords.push([e.latlng.lat, e.latlng.lng]);
+        
+        // Draw temporary line
+        if(tempLineLayer) map.removeLayer(tempLineLayer);
+        tempLineLayer = L.polyline(tempCoords, {
+            color: currentMode === 'arrow' ? 'red' : 'blue', 
+            weight: 3, 
+            dashArray: currentMode === 'arrow' ? '5,5' : ''
+        }).addTo(map);
     }
+});
 
-    // Route recording — only add point if moved ≥ 2m
-    if(recording && lastPos){
-      if(routePts.length === 0 || haversine(routePts[routePts.length-1],ll) >= 2){
-        routePts.push(ll);
-        routeLine.setLatLngs(routePts);
-        document.getElementById('rpts').textContent = routePts.length;
-      }
-    }
+// --- Modal Handling ---
+let pendingData = null;
 
-    // Walking detection
-    detectWalking(pos);
+function openModal(type, coords) {
+    pendingData = coords;
+    document.getElementById('overlay').style.display = 'flex';
+    document.getElementById('form-point').style.display = type === 'point' ? 'block' : 'none';
+    document.getElementById('form-line').style.display = type === 'line' ? 'block' : 'none';
+    
+    if(type === 'point') document.getElementById('pt-name').value = '';
+    if(type === 'line') document.getElementById('ln-name').value = '';
+}
 
-  }, err => {
-    dot.className = 'poor';
-    // Interpret error code and show reason
-    const reasons = {
-      1: 'Permission denied – check location permission in device settings',
-      2: 'Position unavailable – move to open sky area',
-      3: 'Timeout – weak signal, try moving near a window'
+function closeModal() {
+    document.getElementById('overlay').style.display = 'none';
+    pendingData = null;
+    setMode('view');
+}
+
+function saveFeature() {
+    if (!pendingData) return;
+    
+    const isPoint = !Array.isArray(pendingData[0]); // Check if coords is a single LatLng array
+    
+    const feature = {
+        id: Date.now(),
+        geometryType: isPoint ? 'point' : 'line',
+        coords: pendingData
     };
-    const msg = reasons[err.code] || 'GPS error: ' + err.message;
-    lbl.textContent = 'No fix: ' + (reasons[err.code] || err.message);
-    toast(msg, 'e', 5000);
-  }, opts);
+
+    if (isPoint) {
+        feature.type = document.getElementById('pt-type').value;
+        feature.subtype = document.getElementById('pt-subtype').value;
+        feature.name = document.getElementById('pt-name').value;
+    } else {
+        feature.type = document.getElementById('ln-type').value;
+        feature.name = document.getElementById('ln-name').value;
+    }
+
+    features.push(feature);
+    saveData();
+    closeModal();
+    renderAll();
 }
 
-// ═══════════════════════════════════════════
-// SENSOR FUSION – Accelerometer & Compass
-// ═══════════════════════════════════════════
+function saveArrowPath(coords) {
+    features.push({
+        id: Date.now(),
+        geometryType: 'arrow',
+        coords: coords
+    });
+    saveData();
+    setMode('view');
+    renderAll();
+}
 
-// Step detection via accelerometer
-if (window.DeviceMotionEvent) {
-  window.addEventListener('devicemotion', function(e) {
-    // Use acceleration without gravity (dynamic only)
-    const acc = e.acceleration;
-    if (!acc || acc.x === null) return; // not available on this device
+// --- Rendering Engine ---
+function renderAll() {
+    mapLayers.clearLayers();
     
-    const mag = Math.sqrt(acc.x*acc.x + acc.y*acc.y + acc.z*acc.z);
-    // Dynamic movement threshold (m/s²) – tuned for walking
-    accelMoving = mag > 1.2; // roughly indicates body movement
-    
-    // Step detection: simple peak detection with debounce
-    if (mag > 9.5 && (Date.now() - lastStepTime) > 280) {
-      motionStepCount++;
-      lastStepTime = Date.now();
-      // If walking, use motion step count for display
-      if (walkState === 'walking') {
-        updateStepDisplay();
-      }
-    }
-  });
-}
+    features.forEach(f => {
+        if (f.geometryType === 'point') {
+            const isRes = f.subtype === 'res';
+            const baseClass = f.type === 'pucca' ? 'shape-pucca' : f.type === 'kutcha' ? 'shape-kutcha' : 'shape-inst';
+            const shadeClass = isRes ? 'res' : 'non-res';
+            
+            const icon = L.divIcon({
+                className: 'census-marker',
+                html: `<div class="${baseClass} ${shadeClass}"></div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
 
-// Compass / device orientation
-if (window.DeviceOrientationEvent) {
-  window.addEventListener('deviceorientationabsolute', function(e) {
-    // iOS provides webkitCompassHeading, others use alpha
-    if (e.webkitCompassHeading !== undefined) {
-      compassHeading = e.webkitCompassHeading;
-    } else if (e.alpha !== null) {
-      // alpha: 0-360, where 0 = north, but clockwise? standard is 0= north, increasing eastward
-      compassHeading = (360 - e.alpha) % 360;
-    }
-    // If we have a current pos with null heading, inject it
-    if (pos && pos.heading == null && compassHeading != null) {
-      pos.heading = compassHeading;
-    }
-  }, true);
-}
+            const marker = L.marker(f.coords, {icon: icon}).addTo(mapLayers);
+            if (f.name) {
+                marker.bindTooltip(f.name, {permanent: true, direction: 'right', className: 'map-label', offset: [10, 0]});
+            }
+        } 
+        else if (f.geometryType === 'line') {
+            let style = { weight: 4, color: '#000' }; // Default Pucca Road
+            
+            if (f.type === 'kutcha-road') { style.dashArray = '8, 6'; }
+            if (f.type === 'pathway') { style.weight = 2; style.dashArray = '4, 4'; style.color = '#495057'; }
+            if (f.type === 'railway') { style.color = '#000'; style.dashArray = '10, 10'; /* Simplified rendering */ }
+            if (f.type === 'river') { style.color = '#339af0'; style.weight = 6; }
 
-// Update displayed step count using motion steps if walking
-function updateStepDisplay() {
-  if (walkState === 'walking') {
-    const steps = motionStepCount - motionStepsStart;
-    document.getElementById('step-count').textContent = steps + ' steps';
-    sessionSteps = steps; // use motion steps for session tracking
-  }
-}
-
-// ═══════════════════════════════════════════
-// WALKING DETECTION (enhanced with accelMoving)
-// ═══════════════════════════════════════════
-function detectWalking(p){
-  const spd = p.speed || 0; // m/s from GPS
-
-  // Smooth speed with ring buffer
-  walkHistoryBuf.push(spd);
-  if(walkHistoryBuf.length > WALK_BUF_SIZE) walkHistoryBuf.shift();
-  const avgSpd = walkHistoryBuf.reduce((a,b)=>a+b,0)/walkHistoryBuf.length;
-
-  const wasWalking = (walkState === 'walking');
-  // Use both GPS speed and accelerometer motion flag
-  const isWalking  = (avgSpd >= WALK_SPEED_MIN && avgSpd <= WALK_SPEED_MAX) && accelMoving;
-  const isRunning  = (avgSpd > WALK_SPEED_MAX && avgSpd < 8);
-
-  let newState = isWalking ? 'walking' : isRunning ? 'running' : 'stationary';
-
-  // ── Transition: started walking ──
-  if(newState === 'walking' && !wasWalking){
-    walkState     = 'walking';
-    walkStartTime = Date.now();
-    lastWalkPos   = [p.lat, p.lng];
-    motionStepsStart = motionStepCount; // capture current motion step count
-    sessionSteps  = 0;
-    showWalkUI(avgSpd);
-  }
-
-  // ── Walking — accumulate distance & steps ──
-  if(walkState === 'walking' && lastWalkPos){
-    const dl = haversine(lastWalkPos,[p.lat,p.lng]);
-    if(dl >= 1){ // only count if moved ≥ 1m
-      sessionDist  += dl;
-      totalWalkDist+= dl;
-      // Fallback step calculation only if motion steps unavailable (sessionSteps still 0 after start)
-      if (motionStepCount === motionStepsStart) {
-        sessionSteps = Math.round(sessionDist / STEP_LEN);
-      } else {
-        sessionSteps = motionStepCount - motionStepsStart; // already set via updateStepDisplay
-      }
-      lastWalkPos   = [p.lat, p.lng];
-      updateWalkUI(avgSpd);
-
-      // Update toolbar dist
-      document.getElementById('walkdist').style.display='flex';
-      document.getElementById('wdist').textContent = formatDist(totalWalkDist);
-    }
-  }
-
-  // ── Transition: stopped walking ──
-  if(newState !== 'walking' && wasWalking && sessionDist > 5){
-    const dur = Math.round((Date.now()-walkStartTime)/1000);
-    walkSessions.push({
-      dist: Math.round(sessionDist), dur,
-      steps: sessionSteps, time: new Date().toLocaleTimeString()
+            const line = L.polyline(f.coords, style).addTo(mapLayers);
+            if (f.name) {
+                // Add name tooltip to middle of line
+                const midPoint = f.coords[Math.floor(f.coords.length / 2)];
+                L.tooltip({permanent: true, className: 'map-label'}).setLatLng(midPoint).setContent(f.name).addTo(mapLayers);
+            }
+        }
+        else if (f.geometryType === 'arrow') {
+            const polyline = L.polyline(f.coords, {color: '#fa5252', weight: 2, dashArray: '5,5'}).addTo(mapLayers);
+            // Implement PolylineDecorator for directional arrows
+            L.polylineDecorator(polyline, {
+                patterns: [
+                    {offset: '10%', repeat: '50px', symbol: L.Symbol.arrowHead({pixelSize: 12, polygon: false, pathOptions: {stroke: true, color: '#fa5252', weight: 3}})}
+                ]
+            }).addTo(mapLayers);
+        }
     });
-    // reset session
-    sessionDist=0; sessionSteps=0;
-    walkState='stationary';
-    hideWalkUI();
-    toast(`Walk: ${formatDist(walkSessions[walkSessions.length-1].dist)} · ${sessionSteps} steps`,'s');
-    renderStats();
-  }
-
-  if(newState !== 'walking') walkState = newState;
 }
 
-function showWalkUI(spd){
-  document.getElementById('walk-badge').classList.add('show');
-  document.getElementById('walk-status').classList.add('show');
-  document.getElementById('wbtext').textContent = 'Walking';
-  updateWalkUI(spd);
-  toast('Walking detected 🚶','s');
+// --- Storage & Utilities ---
+function saveData() {
+    localStorage.setItem('census-data', JSON.stringify(features));
 }
 
-function updateWalkUI(spd){
-  const kmh = (spd*3.6).toFixed(1);
-  document.getElementById('walk-speed').textContent = kmh+' km/h';
-  document.getElementById('step-count').textContent  = sessionSteps+' steps';
-}
-
-function hideWalkUI(){
-  document.getElementById('walk-badge').classList.remove('show');
-  document.getElementById('walk-status').classList.remove('show');
-}
-
-// ═══════════════════════════════════════════
-// MARK LOCATION
-// ═══════════════════════════════════════════
-function openMarkModal(ll=null){
-  pendLL = ll;
-  document.getElementById('mname').value='';
-  document.getElementById('mnote').value='';
-  document.getElementById('mphone').value='';
-  selCatV='house';
-  document.querySelectorAll('.ccat').forEach(b=>b.classList.toggle('on',b.dataset.c==='house'));
-  document.getElementById('moverlay').classList.add('open');
-  setTimeout(()=>document.getElementById('mname').focus(),200);
-}
-function closeModal(){document.getElementById('moverlay').classList.remove('open');pendLL=null}
-function selCat(el){
-  document.querySelectorAll('.ccat').forEach(b=>b.classList.remove('on'));
-  el.classList.add('on'); selCatV=el.dataset.c;
-}
-function saveLoc(){
-  const p = pendLL||pos;
-  if(!p){toast('No GPS fix','e');closeModal();return}
-  const name  = document.getElementById('mname').value.trim()||('Point '+(locations.length+1));
-  const note  = document.getElementById('mnote').value.trim();
-  const phone = document.getElementById('mphone').value.trim();
-  const loc   = {
-    id:Date.now(), name, note, phone,
-    cat:selCatV,
-    lat: pendLL?pendLL.lat:p.lat,
-    lng: pendLL?pendLL.lng:p.lng,
-    route:[], routeDist:0, routeDur:0,
-    ts: new Date().toISOString()
-  };
-  locations.push(loc);
-  save(); renderAll();
-  closeModal();
-  toast(`"${name}" saved`,'s');
-}
-
-// ═══════════════════════════════════════════
-// ROUTE RECORDING
-// ═══════════════════════════════════════════
-let recStart=0;
-function startRoute(){
-  if(!pos){toast('No GPS fix','e');return}
-  if(recording)return;
-  recording=true; recStart=Date.now();
-  routePts=[[pos.lat,pos.lng]];
-  routeLine.setLatLngs(routePts);
-  document.getElementById('tbstart').classList.add('recording');
-  document.getElementById('tbstop').removeAttribute('disabled');
-  document.getElementById('recmeta').style.display='flex';
-  toast('Recording started','i');
-}
-function stopRoute(){
-  if(!recording)return;
-  recording=false;
-  document.getElementById('tbstart').classList.remove('recording');
-  document.getElementById('tbstop').setAttribute('disabled','');
-  document.getElementById('recmeta').style.display='none';
-  if(!locations.length){toast('Mark a location first','e');routeLine.setLatLngs([]);routePts=[];return}
-  const last=locations[locations.length-1];
-  last.route=[...routePts];
-  last.routeDist=calcDist(routePts);
-  last.routeDur=Math.round((Date.now()-recStart)/1000);
-  save(); renderAll();
-  routePts=[]; routeLine.setLatLngs([]);
-  toast(`Route: ${formatDist(last.routeDist)} · ${last.routeDur}s`,'s');
-}
-
-// ═══════════════════════════════════════════
-// RENDER MARKERS
-// ═══════════════════════════════════════════
-function renderAll(){
-  mkLayer.clearLayers();
-  let rc=0;
-  document.getElementById('mcount').textContent=locations.length;
-  locations.forEach(loc=>{
-    if(loc.route.length) rc++;
-    const col=catCol[loc.cat]||'#7c3aed';
-    const ico=catIco[loc.cat]||'ti-map-pin';
-    const icon=L.divIcon({
-      className:'',
-      html:`<div style="width:28px;height:28px;border-radius:50% 50% 50% 0;background:${col};border:2px solid rgba(255,255,255,.2);transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px #0006"><div style="transform:rotate(45deg)"><i class="ti ${ico}" style="font-size:12px;color:#fff"></i></div></div>`,
-      iconSize:[28,28],iconAnchor:[14,28],popupAnchor:[0,-30]
-    });
-    const mk=L.marker([loc.lat,loc.lng],{icon}).addTo(mkLayer);
-    mk.bindPopup(makePopup(loc));
-    if(loc.route.length){
-      L.polyline(loc.route,{color:col,weight:3,opacity:.7,dashArray:'5,4'}).addTo(mkLayer);
+function clearData() {
+    if (confirm('Warning: This will delete ALL mapped features. Proceed?')) {
+        features = [];
+        saveData();
+        renderAll();
     }
-  });
-  document.getElementById('rcount').textContent=rc;
-  document.getElementById('pcount').textContent=`${locations.length} saved`;
-  renderList(); renderStats();
 }
 
-function makePopup(loc){
-  const col=catCol[loc.cat]||'#7c3aed';
-  return `<div style="min-width:150px">
-    <div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">
-      <div style="width:22px;height:22px;border-radius:6px;background:${col}22;border:1px solid ${col}55;display:flex;align-items:center;justify-content:center">
-        <i class="ti ${catIco[loc.cat]||'ti-map-pin'}" style="color:${col};font-size:12px"></i>
-      </div>
-      <b style="font-size:12px">${esc(loc.name)}</b>
-    </div>
-    ${loc.note?`<div style="font-size:10px;color:#a9a8c0;margin-bottom:4px">${esc(loc.note)}</div>`:''}
-    ${loc.phone?`<div style="font-size:10px;margin-bottom:5px"><i class="ti ti-phone" style="font-size:11px"></i> <a href="tel:${loc.phone}" style="color:#3b82f6">${loc.phone}</a></div>`:''}
-    <div style="font-size:9px;color:#6b6a85;margin-bottom:6px">${loc.route.length?'✅ Route: '+formatDist(loc.routeDist):'❌ No route'}</div>
-    <div style="display:flex;gap:4px">
-      ${loc.route.length?`<button onclick="showDir(${loc.id})" style="flex:1;padding:4px;border-radius:6px;background:#7c3aed22;border:1px solid #7c3aed55;color:#7c3aed;font-size:10px;cursor:pointer;font-family:inherit"><i class="ti ti-route"></i> Directions</button>`:''}
-      ${loc.phone?`<button onclick="window.location='tel:${loc.phone}'" style="flex:1;padding:4px;border-radius:6px;background:#3b82f622;border:1px solid #3b82f655;color:#3b82f6;font-size:10px;cursor:pointer;font-family:inherit"><i class="ti ti-phone"></i> Call</button>`:''}
-    </div>
-  </div>`;
+function exportData() {
+    if (features.length === 0) return alert("No data to export");
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(features, null, 2));
+    const a = document.createElement('a');
+    a.href = dataStr;
+    a.download = "census_layout_data.json";
+    a.click();
 }
 
-// ═══════════════════════════════════════════
-// LIST
-// ═══════════════════════════════════════════
-function renderList(){
-  const q=(document.getElementById('sinput').value||'').toLowerCase();
-  const div=document.getElementById('loclist');
-  let list=locations.filter(l=>{
-    if(curFilter==='routed') return l.route.length>0;
-    if(curFilter!=='all') return l.cat===curFilter;
-    return true;
-  }).filter(l=> !q||(l.name.toLowerCase().includes(q)||(l.note||'').toLowerCase().includes(q)||(l.phone||'').includes(q)));
-  if(!list.length){div.innerHTML=`<div class="empty"><i class="ti ti-map-search"></i><span>Nothing found</span></div>`;return}
-  div.innerHTML='';
-  list.forEach(loc=>{
-    const col=catCol[loc.cat]||'#7c3aed';
-    const el=document.createElement('div');
-    el.className='litem';
-    el.innerHTML=`
-      <div class="lico" style="background:${col}18;border:1px solid ${col}33"><i class="ti ${catIco[loc.cat]||'ti-map-pin'}" style="color:${col}"></i></div>
-      <div class="lbody">
-        <div class="lname">${esc(loc.name)}</div>
-        <div class="lmeta">${loc.note?esc(loc.note).slice(0,40):'No note'}${loc.phone?' · '+loc.phone:''}</div>
-        <div class="ltags">
-          <span class="ltag">${loc.cat}</span>
-          ${loc.route.length?`<span class="ltag ok">✓ ${formatDist(loc.routeDist)}</span>`:`<span class="ltag no">no route</span>`}
-        </div>
-      </div>
-      <div class="lacts">
-        <button class="ico-btn" onclick="flyTo(${loc.id})"><i class="ti ti-eye"></i></button>
-        ${loc.route.length?`<button class="ico-btn" onclick="showDir(${loc.id})"><i class="ti ti-route"></i></button>`:''}
-        <button class="ico-btn del" onclick="delLoc(${loc.id})"><i class="ti ti-trash"></i></button>
-      </div>`;
-    div.appendChild(el);
-  });
-}
-
-function flyTo(id){
-  const l=locations.find(x=>x.id==id);
-  if(l){map.flyTo([l.lat,l.lng],19,{duration:.8});closePanel();}
-}
-function delLoc(id){
-  if(!confirm('Delete?'))return;
-  locations=locations.filter(x=>x.id!=id);
-  save();renderAll();toast('Deleted','i');
-}
-function setFilter(el,f){
-  curFilter=f;
-  document.querySelectorAll('.fpill').forEach(p=>p.classList.remove('on'));
-  el.classList.add('on');renderList();
-}
-
-// ═══════════════════════════════════════════
-// STATS
-// ═══════════════════════════════════════════
-function renderStats(){
-  const cats={};
-  let rc=0,td=0,tt=0;
-  locations.forEach(l=>{cats[l.cat]=(cats[l.cat]||0)+1;if(l.route.length){rc++;td+=l.routeDist||0;tt+=l.routeDur||0;}});
-  document.getElementById('sgrid').innerHTML=`
-    <div class="scard"><div class="slabel">Locations</div><div class="sval">${locations.length}</div></div>
-    <div class="scard"><div class="slabel">Routes</div><div class="sval">${rc}</div></div>
-    <div class="scard"><div class="slabel">Route km</div><div class="sval">${(td/1000).toFixed(1)}</div><div class="ssub">total</div></div>
-    <div class="scard"><div class="slabel">Walk km</div><div class="sval">${(totalWalkDist/1000).toFixed(2)}</div><div class="ssub">this session</div></div>
-  `;
-  const cc=document.getElementById('catchart');
-  if(!Object.keys(cats).length){cc.innerHTML='<div style="font-size:10px;color:var(--text3)">No data</div>';return}
-  const mx=Math.max(...Object.values(cats));
-  cc.innerHTML=Object.entries(cats).map(([c,n])=>{
-    const col=catCol[c]||'#7c3aed';
-    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-      <div style="width:52px;font-size:9px;color:var(--text2)">${c}</div>
-      <div style="flex:1;height:10px;background:var(--card);border-radius:5px;overflow:hidden">
-        <div style="width:${Math.round(n/mx*100)}%;height:100%;background:${col};border-radius:5px"></div>
-      </div>
-      <div style="font-size:9px;color:var(--text2);min-width:12px">${n}</div>
-    </div>`;
-  }).join('');
-
-  // walk sessions
-  const wl=document.getElementById('walklist');
-  if(!walkSessions.length){wl.innerHTML='<span style="color:var(--text3)">No walk sessions yet</span>';return}
-  wl.innerHTML=walkSessions.slice(-5).reverse().map(s=>`
-    <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)">
-      <span>${s.time}</span>
-      <span>${formatDist(s.dist)} · ${s.steps} steps · ${s.dur}s</span>
-    </div>`).join('');
-}
-
-// ═══════════════════════════════════════════
-// DIRECTIONS
-// ═══════════════════════════════════════════
-window.showDir=function(id){
-  const loc=locations.find(l=>l.id==id);
-  if(!loc||!loc.route.length){toast('No route','e');return}
-  const steps=genSteps(loc.route,loc.note);
-  document.getElementById('dirtitle').textContent='→ '+loc.name;
-  document.getElementById('dirsteps').innerHTML=steps.map((s,i)=>`
-    <div class="dstep">
-      <div class="dnum">${i+1}</div>
-      <div><div class="dtxt">${s.t}</div>${s.d?`<div class="ddist">${Math.round(s.d)}m</div>`:''}</div>
-    </div>`).join('');
-  document.getElementById('dirpanel').classList.add('open');
-};
-
-// ═══════════════════════════════════════════
-// MEASURE
-// ═══════════════════════════════════════════
-function startMeasure(){
-  stopMeasure();
-  measuring=true;mPts=[];
-  document.getElementById('mbar').classList.add('open');
-  map.on('click',onMeasureClick);
-}
-function stopMeasure(){
-  measuring=false;
-  map.off('click',onMeasureClick);
-  mPts=[];
-  if(mLine){map.removeLayer(mLine);mLine=null}
-  mMks.forEach(m=>map.removeLayer(m));mMks=[];
-  document.getElementById('mbar').classList.remove('open');
-  document.getElementById('mresult').textContent='';
-}
-function onMeasureClick(e){
-  if(!measuring)return;
-  const ll=[e.latlng.lat,e.latlng.lng];
-  mPts.push(ll);
-  const m=L.circleMarker(ll,{radius:5,color:'#f59e0b',fillColor:'#f59e0b',fillOpacity:1,weight:0}).addTo(map);
-  mMks.push(m);
-  if(mPts.length>=2){
-    if(mLine)map.removeLayer(mLine);
-    mLine=L.polyline(mPts,{color:'#f59e0b',weight:2,dashArray:'5,4'}).addTo(map);
-    const d=haversine(mPts[mPts.length-2],mPts[mPts.length-1]);
-    document.getElementById('mresult').textContent=formatDist(d);
-    mPts=[]; mMks=[];
-  }
-}
-
-// ═══════════════════════════════════════════
-// HEATMAP
-// ═══════════════════════════════════════════
-function toggleHeat(){
-  heatOn=!heatOn;
-  const btn=document.getElementById('tbheat');
-  if(heatOn){
-    heatLayer=L.layerGroup().addTo(map);
-    locations.forEach(l=>{
-      const col=catCol[l.cat]||'#7c3aed';
-      [3,2,1].forEach(r=>L.circleMarker([l.lat,l.lng],{radius:r*13,color:col,fillColor:col,fillOpacity:.045*(4-r),weight:0}).addTo(heatLayer));
-    });
-    btn.querySelector('i').style.color='var(--amber)';
-    toast('Heatmap on','i');
-  } else {
-    if(heatLayer)map.removeLayer(heatLayer);
-    btn.querySelector('i').style.color='';
-    toast('Heatmap off','i');
-  }
-}
-
-function fitAll(){
-  if(!locations.length){toast('No locations','i');return}
-  const b=L.latLngBounds(locations.map(l=>[l.lat,l.lng]));
-  if(youMk) b.extend(youMk.getLatLng());
-  map.fitBounds(b,{padding:[50,50]});
-}
-
-function centerMe(){
-  if(pos) {
-    map.flyTo([pos.lat,pos.lng],19,{duration:.6});
-  } else {
-    // Show diagnostic reason if GPS not fixed
-    const lbl = document.getElementById('gps-lbl').textContent;
-    toast('No GPS fix – ' + lbl, 'e');
-  }
-}
-
-// ═══════════════════════════════════════════
-// CONTEXT MENU
-// ═══════════════════════════════════════════
-map.on('contextmenu',e=>{
-  ctxLL=e.latlng;
-  const mc=map.getContainer().getBoundingClientRect();
-  const x=Math.min(e.originalEvent.clientX-mc.left, mc.width-180);
-  const y=Math.min(e.originalEvent.clientY-mc.top, mc.height-190);
-  const m=document.getElementById('ctx');
-  m.style.left=x+'px'; m.style.top=y+'px';
-  m.classList.add('open');
-});
-map.on('click',closeCtx);
-function closeCtx(){document.getElementById('ctx').classList.remove('open')}
-function ctxMark(){closeCtx();openMarkModal(ctxLL)}
-function ctxCopy(){
-  if(!ctxLL)return;
-  navigator.clipboard?.writeText(`${ctxLL.lat.toFixed(6)}, ${ctxLL.lng.toFixed(6)}`);
-  toast('Coordinates copied','s');closeCtx();
-}
-function ctxGmaps(){
-  if(!ctxLL)return;
-  window.open(`https://www.google.com/maps?q=${ctxLL.lat},${ctxLL.lng}`,'_blank');closeCtx();
-}
-
-// long press on mobile = context menu equivalent
-let longPressTimer=null;
-map.on('mousedown touchstart',e=>{
-  longPressTimer=setTimeout(()=>{
-    const touch=e.originalEvent.touches?e.originalEvent.touches[0]:e.originalEvent;
-    const mc=map.getContainer().getBoundingClientRect();
-    ctxLL=map.mouseEventToLatLng(touch);
-    const x=Math.min(touch.clientX-mc.left, mc.width-180);
-    const y=Math.min(touch.clientY-mc.top, mc.height-190);
-    const m=document.getElementById('ctx');
-    m.style.left=x+'px'; m.style.top=y+'px';
-    m.classList.add('open');
-  },600);
-});
-map.on('mouseup touchend touchmove',()=>clearTimeout(longPressTimer));
-
-// ═══════════════════════════════════════════
-// PANEL
-// ═══════════════════════════════════════════
-let panelOpen=false;
-function togglePanel(){panelOpen=!panelOpen;document.getElementById('panel').classList.toggle('open',panelOpen)}
-function closePanel(){panelOpen=false;document.getElementById('panel').classList.remove('open')}
-document.getElementById('panel-head').querySelector('button').onclick=closePanel;
-
-function switchTab(name){
-  document.querySelectorAll('.ptab').forEach((t,i)=>t.classList.toggle('active',['list','stats','export'][i]===name));
-  document.querySelectorAll('.tpane').forEach(p=>p.classList.remove('on'));
-  document.getElementById('tab-'+name).classList.add('on');
-  if(name==='stats')renderStats();
-}
-
-// ═══════════════════════════════════════════
-// EXPORT / IMPORT
-// ═══════════════════════════════════════════
-function exportJSON(){dl(JSON.stringify({locations,walkSessions},null,2),'lmp-data.json','application/json');toast('JSON exported','s')}
-function exportCSV(){
-  const h='ID,Name,Cat,Lat,Lng,Note,Phone,RoutePts,RouteDist,RouteDur,Timestamp';
-  const r=locations.map(l=>[l.id,Q(l.name),l.cat,l.lat,l.lng,Q(l.note||''),Q(l.phone||''),l.route.length,l.routeDist||0,l.routeDur||0,l.ts||''].join(','));
-  dl(h+'\n'+r.join('\n'),'lmp.csv','text/csv');toast('CSV exported','s');
-}
-function exportGPX(){
-  const w=locations.map(l=>`<wpt lat="${l.lat}" lon="${l.lng}"><name>${esc(l.name)}</name><desc>${esc(l.note||'')}</desc></wpt>`).join('');
-  const t=locations.filter(l=>l.route.length).map(l=>`<trk><name>${esc(l.name)}</name><trkseg>${l.route.map(r=>`<trkpt lat="${r[0]}" lon="${r[1]}"/>`).join('')}</trkseg></trk>`).join('');
-  dl(`<?xml version="1.0"?><gpx version="1.1" creator="LocationMapperPro" xmlns="http://www.topografix.com/GPX/1/1">${w}${t}</gpx>`,'lmp.gpx','application/gpx+xml');
-  toast('GPX exported','s');
-}
-function exportKML(){
-  const p=locations.map(l=>`<Placemark><name>${esc(l.name)}</name><description>${esc(l.note||'')}</description><Point><coordinates>${l.lng},${l.lat},0</coordinates></Point></Placemark>`).join('');
-  dl(`<?xml version="1.0"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document>${p}</Document></kml>`,'lmp.kml','application/vnd.google-earth.kml+xml');
-  toast('KML exported','s');
-}
-function importJSON(input){
-  const file=input.files[0];if(!file)return;
-  const rd=new FileReader();
-  rd.onload=e=>{
-    try{
-      const d=JSON.parse(e.target.result);
-      const arr=Array.isArray(d)?d:(d.locations||[]);
-      const m=new Map(locations.map(l=>[l.id,l]));
-      arr.forEach(l=>m.set(l.id,l));
-      locations=[...m.values()];
-      save();renderAll();
-      toast(`Imported ${arr.length} locations`,'s');
-    }catch(err){toast('Import failed','e')}
-  };
-  rd.readAsText(file);input.value='';
-}
-function clearAll(){
-  if(!confirm('Delete all data?'))return;
-  locations=[];save();renderAll();
-  routeLine.setLatLngs([]);
-  if(heatOn&&heatLayer)map.removeLayer(heatLayer);heatOn=false;
-  toast('Cleared','i');
-}
-
-// ═══════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════
-function save(){localStorage.setItem('lmp-v3',JSON.stringify(locations))}
-
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
-function Q(s){return '"'+String(s).replace(/"/g,'""')+'"'}
-
-function toRad(d){return d*Math.PI/180}
-function haversine(c1,c2){
-  const R=6371e3,φ1=toRad(c1[0]),φ2=toRad(c2[0]);
-  const Δφ=toRad(c2[0]-c1[0]),Δλ=toRad(c2[1]-c1[1]);
-  const a=Math.sin(Δφ/2)**2+Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
-  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-}
-function calcDist(coords){
-  let d=0;for(let i=1;i<coords.length;i++)d+=haversine(coords[i-1],coords[i]);return Math.round(d);
-}
-function formatDist(m){return m<1000?Math.round(m)+'m':(m/1000).toFixed(2)+'km'}
-
-function bearing(c1,c2){
-  const dLng=toRad(c2[1]-c1[1]);
-  const y=Math.sin(dLng)*Math.cos(toRad(c2[0]));
-  const x=Math.cos(toRad(c1[0]))*Math.sin(toRad(c2[0]))-Math.sin(toRad(c1[0]))*Math.cos(toRad(c2[0]))*Math.cos(dLng);
-  return(180/Math.PI*Math.atan2(y,x)+360)%360;
-}
-function angleDiff(a,b){let d=Math.abs(a-b)%360;return d>180?360-d:d}
-function toDir(b){return['North','NE','East','SE','South','SW','West','NW'][Math.round(b/45)%8]}
-
-function genSteps(coords,note){
-  if(coords.length<2)return[{t:'No movement recorded.'}];
-  const steps=[];
-  let seg=0,prevB=bearing(coords[0],coords[1]);
-  for(let i=1;i<coords.length;i++){
-    const d=haversine(coords[i-1],coords[i]);seg+=d;
-    const b=i<coords.length-1?bearing(coords[i-1],coords[i]):prevB;
-    if(angleDiff(prevB,b)>30||i===coords.length-1){
-      if(seg>1)steps.push({t:`Walk ${Math.round(seg)}m heading ${toDir(prevB)}`,d:seg});
-      prevB=b;seg=0;
-    }
-  }
-  steps.push({t:note?'Destination: '+note:'You have arrived ✅'});
-  return steps;
-}
-
-function dl(c,n,t){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c],{type:t}));a.download=n;a.click();URL.revokeObjectURL(a.href)}
-
-function toast(msg,type='i',dur=2500){
-  const el=document.getElementById('toast');
-  const icons={s:'ti-check',e:'ti-alert-circle',i:'ti-info-circle'};
-  document.getElementById('ticon').className='ti '+(icons[type]||'ti-info-circle');
-  document.getElementById('tmsg').textContent=msg;
-  el.className='on '+type;
-  clearTimeout(el._t);
-  el._t=setTimeout(()=>el.className='',dur);
-}
-
-// ── Keyboard shortcuts ──
-document.addEventListener('keydown',e=>{
-  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
-  if(e.key==='m')openMarkModal();
-  if(e.key==='l')togglePanel();
-  if(e.key==='r')startRoute();
-  if(e.key==='s')stopRoute();
-  if(e.key==='f')fitAll();
-  if(e.key==='Escape'){
-    closeModal();closePanel();closeCtx();stopMeasure();
-    document.getElementById('dirpanel').classList.remove('open');
-  }
-});
-
-// ── Init ──
-initGPS();  // replaces direct startGPS() to check permissions first
+// Initial render
 renderAll();
+
 </script>
 </body>
 </html>
