@@ -11,9 +11,8 @@
 
 <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-    body { height: 100vh; display: flex; flex-direction: column; background: #f8f9fa; }
+    body { height: 100vh; display: flex; flex-direction: column; background: #f8f9fa; overflow: hidden; }
     
-    /* High-contrast UI for field work */
     #map { flex: 1; z-index: 1; }
     
     #toolbar {
@@ -25,48 +24,38 @@
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         background: #f1f3f5; border: 1px solid #ced4da; border-radius: 8px;
         min-width: 70px; padding: 10px 8px; font-size: 11px; font-weight: 600;
-        color: #495057; cursor: pointer; transition: 0.1s;
+        color: #495057; cursor: pointer; transition: 0.1s; flex-shrink: 0;
     }
     .btn i { font-size: 22px; margin-bottom: 4px; color: #228be6; }
     .btn.active { background: #e7f5ff; border-color: #339af0; color: #1864ab; }
     .btn.active i { color: #1864ab; }
     .btn.danger i { color: #fa5252; }
+    .btn.success.active { background: #ebfbee; border-color: #40c057; color: #2b8a3e; }
+    .btn.success.active i { color: #2b8a3e; }
 
-    /* Census Specific Marker CSS */
     .census-marker { display: flex; align-items: center; justify-content: center; }
-    
-    /* Pucca: Square */
     .shape-pucca { width: 18px; height: 18px; border: 2px solid #000; background: #fff; }
-    .shape-pucca.non-res { background: #868e96; } /* Shaded */
-    
-    /* Kutcha: Triangle */
+    .shape-pucca.non-res { background: #868e96; }
     .shape-kutcha {
         width: 0; height: 0; 
         border-left: 10px solid transparent; border-right: 10px solid transparent; 
         border-bottom: 18px solid #000; position: relative;
     }
     .shape-kutcha::after {
-        content: ''; position: absolute;
-        top: 2px; left: -7px;
-        border-left: 7px solid transparent; border-right: 7px solid transparent; 
-        border-bottom: 13px solid #fff;
+        content: ''; position: absolute; top: 2px; left: -7px;
+        border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 13px solid #fff;
     }
-    .shape-kutcha.non-res::after { border-bottom-color: #868e96; } /* Shaded */
-    
-    /* Institution / Generic */
+    .shape-kutcha.non-res::after { border-bottom-color: #868e96; }
     .shape-inst { width: 18px; height: 18px; border-radius: 50%; background: #fab005; border: 2px solid #000; }
-
-    /* Labels */
+    .gps-dot { width: 16px; height: 16px; background: #228be6; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 10px rgba(34, 139, 230, 0.8); }
     .map-label { background: transparent; border: none; box-shadow: none; font-weight: bold; font-size: 12px; color: #000; text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff; }
 
-    /* Status Bar */
     #status {
         position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
         background: #343a40; color: #fff; padding: 8px 16px; border-radius: 20px;
         font-size: 13px; font-weight: bold; z-index: 1000; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
 
-    /* Modal */
     #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 16px; }
     #modal { background: #fff; width: 100%; max-width: 400px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
     .form-group { margin-bottom: 12px; }
@@ -75,6 +64,18 @@
     .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
     .btn-submit { flex: 1; padding: 12px; background: #228be6; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; }
     .btn-cancel { flex: 1; padding: 12px; background: #f1f3f5; color: #495057; border: 1px solid #ced4da; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; }
+
+    /* Floating Image Viewer */
+    #ref-viewer {
+        display: none; position: absolute; bottom: 90px; right: 10px; z-index: 1500;
+        background: #fff; padding: 4px; border-radius: 8px; border: 2px solid #ced4da;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2); max-width: 45vw; max-height: 40vh; overflow: hidden;
+    }
+    #ref-viewer img { width: 100%; height: auto; border-radius: 4px; display: block; }
+    .close-ref {
+        position: absolute; top: -10px; right: -10px; background: #fa5252; color: #fff;
+        border: none; border-radius: 50%; width: 24px; height: 24px; font-weight: bold; cursor: pointer;
+    }
 </style>
 </head>
 <body>
@@ -82,9 +83,20 @@
 <div id="status">Status Message</div>
 <div id="map"></div>
 
+<div id="ref-viewer">
+    <button class="close-ref" onclick="document.getElementById('ref-viewer').style.display='none'">X</button>
+    <img id="ref-img" src="" alt="Reference Map">
+</div>
+
 <div id="toolbar">
-    <button class="btn" id="btn-view" onclick="setMode('view')">
-        <i class="ti ti-hand-stop"></i>Pan / View
+    <button class="btn success" id="btn-gps" onclick="toggleGPS()">
+        <i class="ti ti-current-location"></i>Track Me
+    </button>
+    <button class="btn active" id="btn-view" onclick="setMode('view')">
+        <i class="ti ti-hand-stop"></i>Pan
+    </button>
+    <button class="btn" id="btn-boundary" onclick="setMode('boundary')">
+        <i class="ti ti-shape"></i>Boundary
     </button>
     <button class="btn" id="btn-point" onclick="setMode('point')">
         <i class="ti ti-home-plus"></i>Mark Bldg
@@ -95,6 +107,10 @@
     <button class="btn" id="btn-arrow" onclick="setMode('arrow')">
         <i class="ti ti-arrow-move-right"></i>Numbering
     </button>
+    <button class="btn" onclick="document.getElementById('file-upload').click()">
+        <i class="ti ti-photo"></i>Map Photo
+    </button>
+    <input type="file" id="file-upload" accept="image/*" style="display:none;" onchange="loadImage(event)">
     <button class="btn" onclick="exportData()">
         <i class="ti ti-download"></i>Export
     </button>
@@ -154,42 +170,87 @@
 </div>
 
 <script>
-// --- Initialization & State ---
+// --- Initialization ---
 const map = L.map('map', { zoomControl: false }).setView([10.5, 76.2], 15);
 L.control.zoom({position: 'topright'}).addTo(map);
-
-// Use OSM Base layer (can be swapped for offline tiles later)
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22 }).addTo(map);
 
-// Data structure
 let features = JSON.parse(localStorage.getItem('census-data')) || [];
-let currentMode = 'view'; // 'view', 'point', 'line', 'arrow'
+let currentMode = 'view';
 let tempCoords = [];
-let tempLineLayer = null;
+let tempLayer = null;
 let mapLayers = L.featureGroup().addTo(map);
+
+// GPS Variables
+let watchId = null;
+let userMarker = null;
+let accuracyCircle = null;
+
+// --- Reference Image Loader ---
+function loadImage(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('ref-img').src = e.target.result;
+        document.getElementById('ref-viewer').style.display = 'block';
+    }
+    reader.readAsDataURL(file);
+}
+
+// --- GPS Tracking Engine ---
+function toggleGPS() {
+    const btn = document.getElementById('btn-gps');
+    const status = document.getElementById('status');
+
+    if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        if (userMarker) map.removeLayer(userMarker);
+        if (accuracyCircle) map.removeLayer(accuracyCircle);
+        userMarker = null; accuracyCircle = null;
+        btn.classList.remove('active'); status.style.display = 'none';
+        return;
+    }
+
+    if (!navigator.geolocation) { alert("GPS is not supported."); return; }
+
+    btn.classList.add('active');
+    status.textContent = 'Acquiring GPS fix...';
+    status.style.display = 'block';
+
+    watchId = navigator.geolocation.watchPosition((pos) => {
+        const lat = pos.coords.latitude; const lng = pos.coords.longitude; const acc = pos.coords.accuracy;
+        if (acc > 30) { status.textContent = `GPS Poor: ${Math.round(acc)}m`; status.style.background = '#fa5252'; } 
+        else { status.textContent = `GPS Accuracy: ${Math.round(acc)}m`; status.style.background = '#343a40'; }
+
+        if (!userMarker) {
+            userMarker = L.marker([lat, lng], {icon: L.divIcon({className: 'gps-dot', iconSize: [16, 16]}), zIndexOffset: 2000}).addTo(map);
+            accuracyCircle = L.circle([lat, lng], {radius: acc, color: '#228be6', weight: 1, fillColor: '#228be6', fillOpacity: 0.15}).addTo(map);
+            map.setView([lat, lng], 18);
+        } else {
+            userMarker.setLatLng([lat, lng]); accuracyCircle.setLatLng([lat, lng]); accuracyCircle.setRadius(acc);
+        }
+    }, (err) => { status.textContent = 'GPS Error: ' + err.message; status.style.background = '#fa5252'; }, 
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+}
 
 // --- Mode Management ---
 function setMode(mode) {
     currentMode = mode;
-    document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.btn:not(#btn-gps)').forEach(b => b.classList.remove('active'));
     document.getElementById('btn-' + mode)?.classList.add('active');
     
     tempCoords = [];
-    if(tempLineLayer) map.removeLayer(tempLineLayer);
+    if(tempLayer) map.removeLayer(tempLayer);
     
     const status = document.getElementById('status');
-    if (mode === 'point') {
-        status.textContent = 'Tap map to place a building/marker';
-        status.style.display = 'block';
-    } else if (mode === 'line') {
-        status.textContent = 'Tap map to draw points. Click same point to finish.';
-        status.style.display = 'block';
-    } else if (mode === 'arrow') {
-        status.textContent = 'Tap path for numbering direction. Double tap to finish.';
-        status.style.display = 'block';
-    } else {
-        status.style.display = 'none';
-    }
+    status.style.background = '#343a40';
+    if (mode === 'point') { status.textContent = 'Tap to mark building'; status.style.display = 'block'; }
+    else if (mode === 'line') { status.textContent = 'Tap points to draw road. Double tap to end.'; status.style.display = 'block'; }
+    else if (mode === 'arrow') { status.textContent = 'Tap path for numbering. Double tap to end.'; status.style.display = 'block'; }
+    else if (mode === 'boundary') { status.textContent = 'Draw block boundary polygon. Double tap to close.'; status.style.display = 'block'; }
+    else { if (!watchId) status.style.display = 'none'; else status.textContent = 'Tracking Location...'; }
 }
 
 // --- Map Interaction Logic ---
@@ -198,33 +259,33 @@ map.on('click', function(e) {
 
     if (currentMode === 'point') {
         openModal('point', [e.latlng.lat, e.latlng.lng]);
-        setMode('view'); // reset after tap
+        setMode('view');
     } 
-    else if (currentMode === 'line' || currentMode === 'arrow') {
-        // If clicking the same point (double click simulation), finish line
+    else if (['line', 'arrow', 'boundary'].includes(currentMode)) {
         if (tempCoords.length > 0) {
             const last = tempCoords[tempCoords.length - 1];
             const dist = map.distance(last, e.latlng);
             if (dist < 5) { 
                 if (currentMode === 'line') openModal('line', tempCoords);
-                if (currentMode === 'arrow') saveArrowPath(tempCoords);
+                if (currentMode === 'arrow') savePathData('arrow', tempCoords);
+                if (currentMode === 'boundary') savePathData('boundary', tempCoords);
                 return;
             }
         }
         
         tempCoords.push([e.latlng.lat, e.latlng.lng]);
         
-        // Draw temporary line
-        if(tempLineLayer) map.removeLayer(tempLineLayer);
-        tempLineLayer = L.polyline(tempCoords, {
-            color: currentMode === 'arrow' ? 'red' : 'blue', 
-            weight: 3, 
-            dashArray: currentMode === 'arrow' ? '5,5' : ''
-        }).addTo(map);
+        if(tempLayer) map.removeLayer(tempLayer);
+        
+        if (currentMode === 'boundary') {
+            tempLayer = L.polygon(tempCoords, {color: '#212529', weight: 4, dashArray: '10,10', fillOpacity: 0.1}).addTo(map);
+        } else {
+            tempLayer = L.polyline(tempCoords, {color: currentMode === 'arrow' ? 'red' : 'blue', weight: 3, dashArray: currentMode === 'arrow' ? '5,5' : ''}).addTo(map);
+        }
     }
 });
 
-// --- Modal Handling ---
+// --- Data Saving ---
 let pendingData = null;
 
 function openModal(type, coords) {
@@ -232,128 +293,86 @@ function openModal(type, coords) {
     document.getElementById('overlay').style.display = 'flex';
     document.getElementById('form-point').style.display = type === 'point' ? 'block' : 'none';
     document.getElementById('form-line').style.display = type === 'line' ? 'block' : 'none';
-    
     if(type === 'point') document.getElementById('pt-name').value = '';
     if(type === 'line') document.getElementById('ln-name').value = '';
 }
 
-function closeModal() {
-    document.getElementById('overlay').style.display = 'none';
-    pendingData = null;
-    setMode('view');
-}
+function closeModal() { document.getElementById('overlay').style.display = 'none'; pendingData = null; setMode('view'); }
 
 function saveFeature() {
     if (!pendingData) return;
-    
-    const isPoint = !Array.isArray(pendingData[0]); // Check if coords is a single LatLng array
-    
-    const feature = {
-        id: Date.now(),
-        geometryType: isPoint ? 'point' : 'line',
-        coords: pendingData
-    };
+    const isPoint = !Array.isArray(pendingData[0]); 
+    const feature = { id: Date.now(), geometryType: isPoint ? 'point' : 'line', coords: pendingData };
 
     if (isPoint) {
-        feature.type = document.getElementById('pt-type').value;
-        feature.subtype = document.getElementById('pt-subtype').value;
-        feature.name = document.getElementById('pt-name').value;
+        feature.type = document.getElementById('pt-type').value; feature.subtype = document.getElementById('pt-subtype').value; feature.name = document.getElementById('pt-name').value;
     } else {
-        feature.type = document.getElementById('ln-type').value;
-        feature.name = document.getElementById('ln-name').value;
+        feature.type = document.getElementById('ln-type').value; feature.name = document.getElementById('ln-name').value;
     }
 
-    features.push(feature);
-    saveData();
-    closeModal();
-    renderAll();
+    features.push(feature); saveData(); closeModal(); renderAll();
 }
 
-function saveArrowPath(coords) {
-    features.push({
-        id: Date.now(),
-        geometryType: 'arrow',
-        coords: coords
-    });
-    saveData();
-    setMode('view');
-    renderAll();
+function savePathData(type, coords) {
+    features.push({ id: Date.now(), geometryType: type, coords: coords });
+    saveData(); setMode('view'); renderAll();
 }
 
 // --- Rendering Engine ---
 function renderAll() {
     mapLayers.clearLayers();
     
-    features.forEach(f => {
+    // Render boundaries first so they sit below markers
+    features.filter(f => f.geometryType === 'boundary').forEach(f => {
+        L.polygon(f.coords, {color: '#000', weight: 4, fillOpacity: 0.1}).addTo(mapLayers);
+    });
+
+    features.filter(f => f.geometryType !== 'boundary').forEach(f => {
         if (f.geometryType === 'point') {
             const isRes = f.subtype === 'res';
             const baseClass = f.type === 'pucca' ? 'shape-pucca' : f.type === 'kutcha' ? 'shape-kutcha' : 'shape-inst';
             const shadeClass = isRes ? 'res' : 'non-res';
             
-            const icon = L.divIcon({
-                className: 'census-marker',
-                html: `<div class="${baseClass} ${shadeClass}"></div>`,
-                iconSize: [20, 20],
-                iconAnchor: [10, 10]
-            });
-
+            const icon = L.divIcon({ className: 'census-marker', html: `<div class="${baseClass} ${shadeClass}"></div>`, iconSize: [20, 20], iconAnchor: [10, 10] });
             const marker = L.marker(f.coords, {icon: icon}).addTo(mapLayers);
-            if (f.name) {
-                marker.bindTooltip(f.name, {permanent: true, direction: 'right', className: 'map-label', offset: [10, 0]});
-            }
+            if (f.name) marker.bindTooltip(f.name, {permanent: true, direction: 'right', className: 'map-label', offset: [10, 0]});
         } 
         else if (f.geometryType === 'line') {
-            let style = { weight: 4, color: '#000' }; // Default Pucca Road
-            
+            let style = { weight: 4, color: '#000' };
             if (f.type === 'kutcha-road') { style.dashArray = '8, 6'; }
             if (f.type === 'pathway') { style.weight = 2; style.dashArray = '4, 4'; style.color = '#495057'; }
-            if (f.type === 'railway') { style.color = '#000'; style.dashArray = '10, 10'; /* Simplified rendering */ }
+            if (f.type === 'railway') { style.color = '#000'; style.dashArray = '10, 10'; }
             if (f.type === 'river') { style.color = '#339af0'; style.weight = 6; }
 
-            const line = L.polyline(f.coords, style).addTo(mapLayers);
+            L.polyline(f.coords, style).addTo(mapLayers);
             if (f.name) {
-                // Add name tooltip to middle of line
                 const midPoint = f.coords[Math.floor(f.coords.length / 2)];
                 L.tooltip({permanent: true, className: 'map-label'}).setLatLng(midPoint).setContent(f.name).addTo(mapLayers);
             }
         }
         else if (f.geometryType === 'arrow') {
             const polyline = L.polyline(f.coords, {color: '#fa5252', weight: 2, dashArray: '5,5'}).addTo(mapLayers);
-            // Implement PolylineDecorator for directional arrows
             L.polylineDecorator(polyline, {
-                patterns: [
-                    {offset: '10%', repeat: '50px', symbol: L.Symbol.arrowHead({pixelSize: 12, polygon: false, pathOptions: {stroke: true, color: '#fa5252', weight: 3}})}
-                ]
+                patterns: [{offset: '10%', repeat: '50px', symbol: L.Symbol.arrowHead({pixelSize: 12, polygon: false, pathOptions: {stroke: true, color: '#fa5252', weight: 3}})}]
             }).addTo(mapLayers);
         }
     });
 }
 
-// --- Storage & Utilities ---
-function saveData() {
-    localStorage.setItem('census-data', JSON.stringify(features));
-}
+// --- Utilities ---
+function saveData() { localStorage.setItem('census-data', JSON.stringify(features)); }
 
 function clearData() {
-    if (confirm('Warning: This will delete ALL mapped features. Proceed?')) {
-        features = [];
-        saveData();
-        renderAll();
-    }
+    if (confirm('Warning: This deletes ALL features. Proceed?')) { features = []; saveData(); renderAll(); }
 }
 
 function exportData() {
-    if (features.length === 0) return alert("No data to export");
+    if (features.length === 0) return alert("No data");
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(features, null, 2));
-    const a = document.createElement('a');
-    a.href = dataStr;
-    a.download = "census_layout_data.json";
-    a.click();
+    const a = document.createElement('a'); a.href = dataStr; a.download = "census_layout.json"; a.click();
 }
 
-// Initial render
 renderAll();
-
 </script>
 </body>
 </html>
