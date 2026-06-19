@@ -29,6 +29,7 @@
     .btn i { font-size: 22px; margin-bottom: 4px; color: #228be6; }
     .btn.active { background: #e7f5ff; border-color: #339af0; color: #1864ab; }
     .btn.active i { color: #1864ab; }
+    .btn.danger { background: #fff5f5; border-color: #ffc9c9; color: #e03131; }
     .btn.danger i { color: #fa5252; }
     .btn.success.active { background: #ebfbee; border-color: #40c057; color: #2b8a3e; }
     .btn.success.active i { color: #2b8a3e; }
@@ -69,7 +70,7 @@
     /* Georeferencing Overlay Controls */
     #geo-controls {
         display: none; position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); z-index: 1500;
-        background: #fff; padding: 12px; border-radius: 12px; border: 1px solid #ced4da;
+        background: #fff; padding: 12px 16px; border-radius: 12px; border: 1px solid #ced4da;
         box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 90%; max-width: 350px; text-align: center;
     }
     .slider-group { margin-bottom: 12px; text-align: left; }
@@ -95,12 +96,15 @@
         <input type="range" id="img-opacity" min="0.1" max="1" step="0.05" value="0.5" oninput="setOverlayOpacity(this.value)">
     </div>
     <div class="slider-group">
-        <label><span>Image Size</span> <i class="ti ti-maximize"></i></label>
+        <label><span>Scale (Size)</span> <i class="ti ti-maximize"></i></label>
         <input type="range" id="img-scale" min="0.1" max="5" step="0.05" value="1" oninput="setOverlayScale(this.value)">
     </div>
+    <div class="slider-group">
+        <label><span>Rotation</span> <i class="ti ti-rotate-clockwise"></i></label>
+        <input type="range" id="img-rotate" min="-180" max="180" step="1" value="0" oninput="setOverlayRotation(this.value)">
+    </div>
     <div class="geo-btns">
-        <button class="btn-submit" onclick="lockOverlay()">Lock Image</button>
-        <button class="btn-cancel" onclick="removeOverlay()">Clear Image</button>
+        <button class="btn-submit" style="width: 100%" onclick="lockOverlay()">Lock Image & Draw</button>
     </div>
 </div>
 
@@ -123,15 +127,21 @@
     <button class="btn" id="btn-arrow" onclick="setMode('arrow')">
         <i class="ti ti-arrow-move-right"></i>Numbering
     </button>
-    <button class="btn" onclick="document.getElementById('file-upload').click()">
+    
+    <button class="btn" id="btn-photo-upload" onclick="document.getElementById('file-upload').click()">
         <i class="ti ti-photo-plus"></i>Map Photo
     </button>
     <input type="file" id="file-upload" accept="image/*" style="display:none;" onchange="loadImageOverlay(event)">
+    
+    <button class="btn danger" id="btn-photo-clear" style="display:none;" onclick="removeOverlay()">
+        <i class="ti ti-photo-off"></i>Clear Photo
+    </button>
+
     <button class="btn" onclick="exportData()">
         <i class="ti ti-download"></i>Export
     </button>
     <button class="btn danger" onclick="clearData()">
-        <i class="ti ti-trash"></i>Clear
+        <i class="ti ti-trash"></i>Wipe Data
     </button>
 </div>
 
@@ -203,8 +213,9 @@ let watchId = null; let userMarker = null; let accuracyCircle = null;
 // --- Georeferencing Overlay System ---
 let refOverlay = null;
 let refMarkerCenter = null;
-let baseLatSpan = 0.005; // Default height of the image in coordinates
-let baseLngSpan = 0.005; // Default width of the image in coordinates
+let baseLatSpan = 0.005; 
+let baseLngSpan = 0.005; 
+let imgAngle = 0;
 
 function loadImageOverlay(event) {
     const file = event.target.files[0];
@@ -214,47 +225,76 @@ function loadImageOverlay(event) {
     reader.onload = function(e) {
         const imgUrl = e.target.result;
         
-        // Load image silently to get original aspect ratio
         const tempImg = new Image();
         tempImg.onload = function() {
             const aspectRatio = tempImg.width / tempImg.height;
             const center = map.getCenter();
             
-            // Adjust longitude span based on latitude to prevent distortion in Web Mercator projection
             const cosLat = Math.cos(center.lat * Math.PI / 180);
             baseLngSpan = (baseLatSpan * aspectRatio) / cosLat;
 
-            removeOverlay(); // Clean up existing if any
+            removeOverlay(); // Clean up if replacing
 
-            // Reset Sliders
+            // Reset Sliders & Logic
             document.getElementById('img-scale').value = 1;
             document.getElementById('img-opacity').value = 0.5;
+            document.getElementById('img-rotate').value = 0;
+            imgAngle = 0;
 
-            // Draw Initial Image
             const bounds = getBoundsFromCenter(center, 1);
             refOverlay = L.imageOverlay(imgUrl, bounds, {opacity: 0.5, zIndex: 10}).addTo(map);
             
-            // Create Center Drag Pin
             const dragIcon = L.divIcon({className: 'center-drag-marker', html: '<i class="ti ti-arrows-move"></i>', iconSize: [36, 36], iconAnchor: [18, 18]});
             refMarkerCenter = L.marker(center, {draggable: true, icon: dragIcon, zIndexOffset: 3000}).addTo(map);
 
-            // Update image bounds dynamically as the center pin is dragged
             refMarkerCenter.on('drag', function(e) {
                 const newCenter = e.target.getLatLng();
                 const currentScale = parseFloat(document.getElementById('img-scale').value);
                 refOverlay.setBounds(getBoundsFromCenter(newCenter, currentScale));
+                applyRotation(); // Keep rotation pinned during drag
             });
 
+            // UI Swaps
             document.getElementById('geo-controls').style.display = 'block';
-            setMode('view'); // Auto switch to pan mode so drawing lines doesn't trigger
+            document.getElementById('btn-photo-upload').style.display = 'none';
+            document.getElementById('btn-photo-clear').style.display = 'flex';
+            setMode('view'); 
+            
+            // Ensure rotation is applied as soon as the image DOM element is injected
+            refOverlay.on('load', applyRotation);
+            applyRotation();
         };
         tempImg.src = imgUrl;
     }
     reader.readAsDataURL(file);
-    event.target.value = ''; // Reset file input
+    event.target.value = ''; 
 }
 
-// Math helper to keep aspect ratio based on a center point
+// Map events constantly overwrite the image position/transform during zoom. We must re-apply rotation.
+map.on('zoom viewreset zoomend zoomanim move moveend', function() {
+    requestAnimationFrame(applyRotation);
+});
+
+function applyRotation() {
+    if (!refOverlay) return;
+    const el = refOverlay.getElement();
+    if (!el) return;
+    
+    // Set origin to exact center of the bounding box
+    el.style.transformOrigin = '50% 50%';
+    let currentTransform = el.style.transform || '';
+    
+    // Strip out any previously applied rotate statement
+    currentTransform = currentTransform.replace(/ rotate\([-\d.]+deg\)/g, '');
+    
+    // Append the new rotation safely to Leaflet's base transform
+    if (imgAngle !== 0) {
+        el.style.transform = currentTransform + ` rotate(${imgAngle}deg)`;
+    } else {
+        el.style.transform = currentTransform;
+    }
+}
+
 function getBoundsFromCenter(center, scale) {
     const latHalf = (baseLatSpan * scale) / 2;
     const lngHalf = (baseLngSpan * scale) / 2;
@@ -268,24 +308,34 @@ function setOverlayScale(val) {
     if(!refOverlay || !refMarkerCenter) return;
     const center = refMarkerCenter.getLatLng();
     refOverlay.setBounds(getBoundsFromCenter(center, parseFloat(val)));
+    applyRotation();
 }
 
 function setOverlayOpacity(val) {
     if(refOverlay) refOverlay.setOpacity(parseFloat(val));
 }
 
+function setOverlayRotation(val) {
+    imgAngle = parseFloat(val);
+    applyRotation();
+}
+
 function lockOverlay() {
     if(refMarkerCenter) map.removeLayer(refMarkerCenter);
     refMarkerCenter = null;
     document.getElementById('geo-controls').style.display = 'none';
-    alert("Image locked in place. You can now trace boundaries over it.");
+    alert("Image locked in place! You can now draw over it. Click 'Clear Photo' in the toolbar to remove it later.");
 }
 
 function removeOverlay() {
     if(refOverlay) map.removeLayer(refOverlay);
     if(refMarkerCenter) map.removeLayer(refMarkerCenter);
-    refOverlay = null; refMarkerCenter = null;
+    refOverlay = null; refMarkerCenter = null; imgAngle = 0;
+    
+    // UI Swaps
     document.getElementById('geo-controls').style.display = 'none';
+    document.getElementById('btn-photo-upload').style.display = 'flex';
+    document.getElementById('btn-photo-clear').style.display = 'none';
 }
 
 // --- GPS Tracking Engine ---
@@ -322,7 +372,7 @@ function toggleGPS() {
 // --- Mode Management ---
 function setMode(mode) {
     currentMode = mode;
-    document.querySelectorAll('.btn:not(#btn-gps)').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.btn:not(#btn-gps):not(#btn-photo-clear):not(#btn-photo-upload)').forEach(b => b.classList.remove('active'));
     document.getElementById('btn-' + mode)?.classList.add('active');
     
     tempCoords = [];
