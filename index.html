@@ -560,7 +560,7 @@ let heatLayer= null;
 let walkState      = 'unknown'; // 'walking'|'stationary'|'unknown'
 let lastWalkPos    = null;
 let walkStartTime  = null;
-let sessionSteps   = 0;
+let sessionSteps   = 0;          // will be overwritten by sensor fusion
 let sessionDist    = 0;        // metres in current walk session
 let totalWalkDist  = 0;
 let walkSessions   = [];
@@ -569,8 +569,14 @@ let walkHistoryBuf = []; // ring buffer of last N speeds
 const WALK_SPEED_MIN = 0.4;  // m/s  (~1.4 km/h) — threshold to count as walking
 const WALK_SPEED_MAX = 3.0;  // m/s  (~10.8 km/h) — cap for walking vs running/vehicle
 const WALK_BUF_SIZE  = 4;
-// Step estimation: avg step length 0.75m
-const STEP_LEN = 0.75;
+const STEP_LEN = 0.75; // fallback when no motion sensor
+
+// Sensor fusion variables
+let motionStepCount  = 0;      // steps counted from accelerometer
+let motionStepsStart = 0;      // count when current walk session began
+let accelMoving      = false;  // true if user shows dynamic movement
+let compassHeading   = null;   // from device orientation (0-360)
+let lastStepTime     = 0;
 
 let locations = JSON.parse(localStorage.getItem('lmp-v3')||'[]');
 
@@ -578,17 +584,55 @@ const catCol = {house:'#7c3aed',student:'#3b82f6',school:'#10b981',shop:'#f59e0b
 const catIco = {house:'ti-home',student:'ti-user',school:'ti-building',shop:'ti-shopping-bag',landmark:'ti-map-pin',other:'ti-tag'};
 
 // ═══════════════════════════════════════════
-// GPS — HIGH SENSITIVITY
+// GPS PERMISSION & SUPPORT CHECK
+// ═══════════════════════════════════════════
+function initGPS(){
+  const dot = document.getElementById('gps-dot');
+  const lbl = document.getElementById('gps-lbl');
+
+  if (!navigator.geolocation) {
+    dot.className = 'poor';
+    lbl.textContent = 'No GPS hardware';
+    toast('No GPS – you can still mark locations manually', 'e', 5000);
+    return;
+  }
+
+  // Permissions API (if available) to check upfront
+  if (navigator.permissions) {
+    navigator.permissions.query({name:'geolocation'}).then(result => {
+      if (result.state === 'denied') {
+        dot.className = 'poor';
+        lbl.textContent = 'Denied – enable in settings';
+        toast('Location permission denied – check browser/OS settings', 'e', 6000);
+      } else if (result.state === 'prompt') {
+        dot.className = 'searching';
+        lbl.textContent = 'Waiting for permission…';
+        startGPS(); // will trigger prompt
+      } else {
+        startGPS(); // granted
+      }
+    }).catch(() => {
+      // Permissions API not supported, just start
+      startGPS();
+    });
+  } else {
+    startGPS();
+  }
+}
+
+// ═══════════════════════════════════════════
+// GPS — HIGH SENSITIVITY with error reasoning
 // ═══════════════════════════════════════════
 let lastPos = null;
 let watchId = null;
 
 function startGPS(){
-  if(!navigator.geolocation){toast('GPS not supported','e');return}
+  if (!navigator.geolocation) return;
   const dot   = document.getElementById('gps-dot');
   const lbl   = document.getElementById('gps-lbl');
   const accEl = document.getElementById('acc-val');
   dot.className = 'searching';
+  lbl.textContent = 'Searching…';
 
   const opts = {
     enableHighAccuracy: true,
@@ -598,7 +642,14 @@ function startGPS(){
 
   watchId = navigator.geolocation.watchPosition(p => {
     const {latitude:lat, longitude:lng, accuracy:acc, speed:spd, heading:hdg} = p.coords;
-    pos = {lat, lng, acc, speed: spd||0, heading: hdg||null};
+    
+    // Use compass heading if GPS heading null
+    let finalHeading = hdg;
+    if (finalHeading == null && compassHeading != null) {
+      finalHeading = compassHeading;
+    }
+    
+    pos = {lat, lng, acc, speed: spd||0, heading: finalHeading};
 
     // Filter jitter: ignore if accuracy > 50m AND position barely moved
     if(acc > 50 && lastPos){
@@ -630,12 +681,12 @@ function startGPS(){
     if(youCircle) map.removeLayer(youCircle);
     youCircle = L.circle(ll,{radius:acc,color:'#f43f5e',fillColor:'#f43f5e',fillOpacity:.08,weight:1,dashArray:'4,4'}).addTo(map);
 
-    // Auto-pan only when recording (keeps map centred on user)
+    // Auto-pan only when recording
     if(recording){
       map.panTo(ll,{animate:true,duration:.5});
     }
 
-    // Route recording — only add point if moved ≥ 2m (avoids GPS drift points)
+    // Route recording — only add point if moved ≥ 2m
     if(recording && lastPos){
       if(routePts.length === 0 || haversine(routePts[routePts.length-1],ll) >= 2){
         routePts.push(ll);
@@ -648,14 +699,74 @@ function startGPS(){
     detectWalking(pos);
 
   }, err => {
-    dot.className = '';
-    lbl.textContent = 'No GPS';
-    toast('GPS error: '+err.message,'e');
+    dot.className = 'poor';
+    // Interpret error code and show reason
+    const reasons = {
+      1: 'Permission denied – check location permission in device settings',
+      2: 'Position unavailable – move to open sky area',
+      3: 'Timeout – weak signal, try moving near a window'
+    };
+    const msg = reasons[err.code] || 'GPS error: ' + err.message;
+    lbl.textContent = 'No fix: ' + (reasons[err.code] || err.message);
+    toast(msg, 'e', 5000);
   }, opts);
 }
 
 // ═══════════════════════════════════════════
-// WALKING DETECTION
+// SENSOR FUSION – Accelerometer & Compass
+// ═══════════════════════════════════════════
+
+// Step detection via accelerometer
+if (window.DeviceMotionEvent) {
+  window.addEventListener('devicemotion', function(e) {
+    // Use acceleration without gravity (dynamic only)
+    const acc = e.acceleration;
+    if (!acc || acc.x === null) return; // not available on this device
+    
+    const mag = Math.sqrt(acc.x*acc.x + acc.y*acc.y + acc.z*acc.z);
+    // Dynamic movement threshold (m/s²) – tuned for walking
+    accelMoving = mag > 1.2; // roughly indicates body movement
+    
+    // Step detection: simple peak detection with debounce
+    if (mag > 9.5 && (Date.now() - lastStepTime) > 280) {
+      motionStepCount++;
+      lastStepTime = Date.now();
+      // If walking, use motion step count for display
+      if (walkState === 'walking') {
+        updateStepDisplay();
+      }
+    }
+  });
+}
+
+// Compass / device orientation
+if (window.DeviceOrientationEvent) {
+  window.addEventListener('deviceorientationabsolute', function(e) {
+    // iOS provides webkitCompassHeading, others use alpha
+    if (e.webkitCompassHeading !== undefined) {
+      compassHeading = e.webkitCompassHeading;
+    } else if (e.alpha !== null) {
+      // alpha: 0-360, where 0 = north, but clockwise? standard is 0= north, increasing eastward
+      compassHeading = (360 - e.alpha) % 360;
+    }
+    // If we have a current pos with null heading, inject it
+    if (pos && pos.heading == null && compassHeading != null) {
+      pos.heading = compassHeading;
+    }
+  }, true);
+}
+
+// Update displayed step count using motion steps if walking
+function updateStepDisplay() {
+  if (walkState === 'walking') {
+    const steps = motionStepCount - motionStepsStart;
+    document.getElementById('step-count').textContent = steps + ' steps';
+    sessionSteps = steps; // use motion steps for session tracking
+  }
+}
+
+// ═══════════════════════════════════════════
+// WALKING DETECTION (enhanced with accelMoving)
 // ═══════════════════════════════════════════
 function detectWalking(p){
   const spd = p.speed || 0; // m/s from GPS
@@ -666,10 +777,10 @@ function detectWalking(p){
   const avgSpd = walkHistoryBuf.reduce((a,b)=>a+b,0)/walkHistoryBuf.length;
 
   const wasWalking = (walkState === 'walking');
-  const isWalking  = (avgSpd >= WALK_SPEED_MIN && avgSpd <= WALK_SPEED_MAX);
-  const isRunning  = (avgSpd > WALK_SPEED_MAX && avgSpd < 8); // > 10.8 km/h
+  // Use both GPS speed and accelerometer motion flag
+  const isWalking  = (avgSpd >= WALK_SPEED_MIN && avgSpd <= WALK_SPEED_MAX) && accelMoving;
+  const isRunning  = (avgSpd > WALK_SPEED_MAX && avgSpd < 8);
 
-  // Determine state
   let newState = isWalking ? 'walking' : isRunning ? 'running' : 'stationary';
 
   // ── Transition: started walking ──
@@ -677,6 +788,8 @@ function detectWalking(p){
     walkState     = 'walking';
     walkStartTime = Date.now();
     lastWalkPos   = [p.lat, p.lng];
+    motionStepsStart = motionStepCount; // capture current motion step count
+    sessionSteps  = 0;
     showWalkUI(avgSpd);
   }
 
@@ -686,7 +799,12 @@ function detectWalking(p){
     if(dl >= 1){ // only count if moved ≥ 1m
       sessionDist  += dl;
       totalWalkDist+= dl;
-      sessionSteps  = Math.round(sessionDist / STEP_LEN);
+      // Fallback step calculation only if motion steps unavailable (sessionSteps still 0 after start)
+      if (motionStepCount === motionStepsStart) {
+        sessionSteps = Math.round(sessionDist / STEP_LEN);
+      } else {
+        sessionSteps = motionStepCount - motionStepsStart; // already set via updateStepDisplay
+      }
       lastWalkPos   = [p.lat, p.lng];
       updateWalkUI(avgSpd);
 
@@ -1014,8 +1132,13 @@ function fitAll(){
 }
 
 function centerMe(){
-  if(pos) map.flyTo([pos.lat,pos.lng],19,{duration:.6});
-  else toast('No GPS fix','e');
+  if(pos) {
+    map.flyTo([pos.lat,pos.lng],19,{duration:.6});
+  } else {
+    // Show diagnostic reason if GPS not fixed
+    const lbl = document.getElementById('gps-lbl').textContent;
+    toast('No GPS fix – ' + lbl, 'e');
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -1190,7 +1313,7 @@ document.addEventListener('keydown',e=>{
 });
 
 // ── Init ──
-startGPS();
+initGPS();  // replaces direct startGPS() to check permissions first
 renderAll();
 </script>
 </body>
