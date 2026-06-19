@@ -33,6 +33,7 @@
     .btn.success.active { background: #ebfbee; border-color: #40c057; color: #2b8a3e; }
     .btn.success.active i { color: #2b8a3e; }
 
+    /* Census Markers */
     .census-marker { display: flex; align-items: center; justify-content: center; }
     .shape-pucca { width: 18px; height: 18px; border: 2px solid #000; background: #fff; }
     .shape-pucca.non-res { background: #868e96; }
@@ -65,16 +66,19 @@
     .btn-submit { flex: 1; padding: 12px; background: #228be6; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; }
     .btn-cancel { flex: 1; padding: 12px; background: #f1f3f5; color: #495057; border: 1px solid #ced4da; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; }
 
-    /* Floating Image Viewer */
-    #ref-viewer {
-        display: none; position: absolute; bottom: 90px; right: 10px; z-index: 1500;
-        background: #fff; padding: 4px; border-radius: 8px; border: 2px solid #ced4da;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2); max-width: 45vw; max-height: 40vh; overflow: hidden;
+    /* Georeferencing Overlay Controls */
+    #geo-controls {
+        display: none; position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); z-index: 1500;
+        background: #fff; padding: 12px; border-radius: 12px; border: 1px solid #ced4da;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 90%; max-width: 350px; text-align: center;
     }
-    #ref-viewer img { width: 100%; height: auto; border-radius: 4px; display: block; }
-    .close-ref {
-        position: absolute; top: -10px; right: -10px; background: #fa5252; color: #fff;
-        border: none; border-radius: 50%; width: 24px; height: 24px; font-weight: bold; cursor: pointer;
+    #geo-controls label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #495057; }
+    #geo-controls input[type=range] { width: 100%; margin-bottom: 12px; }
+    .geo-btns { display: flex; gap: 8px; }
+    .corner-marker {
+        background: #212529; color: #fff; border-radius: 50%; border: 2px solid #fff;
+        display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.5);
     }
 </style>
 </head>
@@ -83,9 +87,13 @@
 <div id="status">Status Message</div>
 <div id="map"></div>
 
-<div id="ref-viewer">
-    <button class="close-ref" onclick="document.getElementById('ref-viewer').style.display='none'">X</button>
-    <img id="ref-img" src="" alt="Reference Map">
+<div id="geo-controls">
+    <label>Overlay Opacity</label>
+    <input type="range" id="img-opacity" min="0.1" max="1" step="0.05" value="0.5" oninput="setOverlayOpacity(this.value)">
+    <div class="geo-btns">
+        <button class="btn-submit" onclick="lockOverlay()">Lock Image</button>
+        <button class="btn-cancel" onclick="removeOverlay()">Clear Image</button>
+    </div>
 </div>
 
 <div id="toolbar">
@@ -108,9 +116,9 @@
         <i class="ti ti-arrow-move-right"></i>Numbering
     </button>
     <button class="btn" onclick="document.getElementById('file-upload').click()">
-        <i class="ti ti-photo"></i>Map Photo
+        <i class="ti ti-photo-plus"></i>Map Photo
     </button>
-    <input type="file" id="file-upload" accept="image/*" style="display:none;" onchange="loadImage(event)">
+    <input type="file" id="file-upload" accept="image/*" style="display:none;" onchange="loadImageOverlay(event)">
     <button class="btn" onclick="exportData()">
         <i class="ti ti-download"></i>Export
     </button>
@@ -182,20 +190,76 @@ let tempLayer = null;
 let mapLayers = L.featureGroup().addTo(map);
 
 // GPS Variables
-let watchId = null;
-let userMarker = null;
-let accuracyCircle = null;
+let watchId = null; let userMarker = null; let accuracyCircle = null;
 
-// --- Reference Image Loader ---
-function loadImage(event) {
+// --- Georeferencing Overlay System ---
+let refOverlay = null;
+let refMarker1 = null;
+let refMarker2 = null;
+
+function loadImageOverlay(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = function(e) {
-        document.getElementById('ref-img').src = e.target.result;
-        document.getElementById('ref-viewer').style.display = 'block';
+        const imgUrl = e.target.result;
+        const center = map.getCenter();
+        
+        // Create initial rough boundaries around the center of the screen
+        const bounds1 = [center.lat + 0.003, center.lng - 0.003];
+        const bounds2 = [center.lat - 0.003, center.lng + 0.003];
+
+        removeOverlay(); // Clean up existing if any
+
+        refOverlay = L.imageOverlay(imgUrl, [bounds1, bounds2], {opacity: 0.5, zIndex: 10}).addTo(map);
+        
+        const icon1 = L.divIcon({className: 'corner-marker', html: '1', iconSize: [30, 30]});
+        const icon2 = L.divIcon({className: 'corner-marker', html: '2', iconSize: [30, 30]});
+        
+        refMarker1 = L.marker(bounds1, {draggable: true, icon: icon1, zIndexOffset: 3000}).addTo(map);
+        refMarker2 = L.marker(bounds2, {draggable: true, icon: icon2, zIndexOffset: 3000}).addTo(map);
+
+        refMarker1.on('drag', updateOverlayBounds);
+        refMarker2.on('drag', updateOverlayBounds);
+
+        document.getElementById('geo-controls').style.display = 'block';
+        document.getElementById('img-opacity').value = 0.5;
+        
+        // Automatically switch to view mode so user can pan/drag without accidentally drawing lines
+        setMode('view');
     }
     reader.readAsDataURL(file);
+    event.target.value = ''; // Reset input
+}
+
+function updateOverlayBounds() {
+    if(!refOverlay || !refMarker1 || !refMarker2) return;
+    const p1 = refMarker1.getLatLng();
+    const p2 = refMarker2.getLatLng();
+    refOverlay.setBounds(L.latLngBounds(p1, p2));
+}
+
+function setOverlayOpacity(val) {
+    if(refOverlay) refOverlay.setOpacity(val);
+}
+
+function lockOverlay() {
+    if(refMarker1) map.removeLayer(refMarker1);
+    if(refMarker2) map.removeLayer(refMarker2);
+    refMarker1 = null; refMarker2 = null;
+    
+    // Change UI state
+    document.querySelector('#geo-controls .btn-submit').style.display = 'none';
+    alert("Image locked in place. You can now trace over it.");
+}
+
+function removeOverlay() {
+    if(refOverlay) map.removeLayer(refOverlay);
+    if(refMarker1) map.removeLayer(refMarker1);
+    if(refMarker2) map.removeLayer(refMarker2);
+    refOverlay = null; refMarker1 = null; refMarker2 = null;
+    document.getElementById('geo-controls').style.display = 'none';
+    document.querySelector('#geo-controls .btn-submit').style.display = 'block';
 }
 
 // --- GPS Tracking Engine ---
@@ -204,20 +268,14 @@ function toggleGPS() {
     const status = document.getElementById('status');
 
     if (watchId) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-        if (userMarker) map.removeLayer(userMarker);
-        if (accuracyCircle) map.removeLayer(accuracyCircle);
-        userMarker = null; accuracyCircle = null;
-        btn.classList.remove('active'); status.style.display = 'none';
-        return;
+        navigator.geolocation.clearWatch(watchId); watchId = null;
+        if (userMarker) map.removeLayer(userMarker); if (accuracyCircle) map.removeLayer(accuracyCircle);
+        userMarker = null; accuracyCircle = null; btn.classList.remove('active'); status.style.display = 'none'; return;
     }
 
     if (!navigator.geolocation) { alert("GPS is not supported."); return; }
 
-    btn.classList.add('active');
-    status.textContent = 'Acquiring GPS fix...';
-    status.style.display = 'block';
+    btn.classList.add('active'); status.textContent = 'Acquiring GPS fix...'; status.style.display = 'block';
 
     watchId = navigator.geolocation.watchPosition((pos) => {
         const lat = pos.coords.latitude; const lng = pos.coords.longitude; const acc = pos.coords.accuracy;
@@ -272,9 +330,7 @@ map.on('click', function(e) {
                 return;
             }
         }
-        
         tempCoords.push([e.latlng.lat, e.latlng.lng]);
-        
         if(tempLayer) map.removeLayer(tempLayer);
         
         if (currentMode === 'boundary') {
@@ -289,8 +345,7 @@ map.on('click', function(e) {
 let pendingData = null;
 
 function openModal(type, coords) {
-    pendingData = coords;
-    document.getElementById('overlay').style.display = 'flex';
+    pendingData = coords; document.getElementById('overlay').style.display = 'flex';
     document.getElementById('form-point').style.display = type === 'point' ? 'block' : 'none';
     document.getElementById('form-line').style.display = type === 'line' ? 'block' : 'none';
     if(type === 'point') document.getElementById('pt-name').value = '';
@@ -309,7 +364,6 @@ function saveFeature() {
     } else {
         feature.type = document.getElementById('ln-type').value; feature.name = document.getElementById('ln-name').value;
     }
-
     features.push(feature); saveData(); closeModal(); renderAll();
 }
 
@@ -321,8 +375,6 @@ function savePathData(type, coords) {
 // --- Rendering Engine ---
 function renderAll() {
     mapLayers.clearLayers();
-    
-    // Render boundaries first so they sit below markers
     features.filter(f => f.geometryType === 'boundary').forEach(f => {
         L.polygon(f.coords, {color: '#000', weight: 4, fillOpacity: 0.1}).addTo(mapLayers);
     });
@@ -332,7 +384,6 @@ function renderAll() {
             const isRes = f.subtype === 'res';
             const baseClass = f.type === 'pucca' ? 'shape-pucca' : f.type === 'kutcha' ? 'shape-kutcha' : 'shape-inst';
             const shadeClass = isRes ? 'res' : 'non-res';
-            
             const icon = L.divIcon({ className: 'census-marker', html: `<div class="${baseClass} ${shadeClass}"></div>`, iconSize: [20, 20], iconAnchor: [10, 10] });
             const marker = L.marker(f.coords, {icon: icon}).addTo(mapLayers);
             if (f.name) marker.bindTooltip(f.name, {permanent: true, direction: 'right', className: 'map-label', offset: [10, 0]});
@@ -343,7 +394,6 @@ function renderAll() {
             if (f.type === 'pathway') { style.weight = 2; style.dashArray = '4, 4'; style.color = '#495057'; }
             if (f.type === 'railway') { style.color = '#000'; style.dashArray = '10, 10'; }
             if (f.type === 'river') { style.color = '#339af0'; style.weight = 6; }
-
             L.polyline(f.coords, style).addTo(mapLayers);
             if (f.name) {
                 const midPoint = f.coords[Math.floor(f.coords.length / 2)];
@@ -359,12 +409,9 @@ function renderAll() {
     });
 }
 
-// --- Utilities ---
 function saveData() { localStorage.setItem('census-data', JSON.stringify(features)); }
 
-function clearData() {
-    if (confirm('Warning: This deletes ALL features. Proceed?')) { features = []; saveData(); renderAll(); }
-}
+function clearData() { if (confirm('Warning: This deletes ALL features. Proceed?')) { features = []; saveData(); renderAll(); } }
 
 function exportData() {
     if (features.length === 0) return alert("No data");
