@@ -72,13 +72,15 @@
         background: #fff; padding: 12px; border-radius: 12px; border: 1px solid #ced4da;
         box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 90%; max-width: 350px; text-align: center;
     }
-    #geo-controls label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #495057; }
-    #geo-controls input[type=range] { width: 100%; margin-bottom: 12px; }
-    .geo-btns { display: flex; gap: 8px; }
-    .corner-marker {
-        background: #212529; color: #fff; border-radius: 50%; border: 2px solid #fff;
-        display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    .slider-group { margin-bottom: 12px; text-align: left; }
+    .slider-group label { display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; margin-bottom: 4px; color: #495057; }
+    #geo-controls input[type=range] { width: 100%; }
+    .geo-btns { display: flex; gap: 8px; margin-top: 15px; }
+    
+    .center-drag-marker {
+        background: #228be6; color: #fff; border-radius: 50%; border: 2px solid #fff;
+        display: flex; align-items: center; justify-content: center; font-size: 18px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
     }
 </style>
 </head>
@@ -88,8 +90,14 @@
 <div id="map"></div>
 
 <div id="geo-controls">
-    <label>Overlay Opacity</label>
-    <input type="range" id="img-opacity" min="0.1" max="1" step="0.05" value="0.5" oninput="setOverlayOpacity(this.value)">
+    <div class="slider-group">
+        <label><span>Opacity</span> <i class="ti ti-eye"></i></label>
+        <input type="range" id="img-opacity" min="0.1" max="1" step="0.05" value="0.5" oninput="setOverlayOpacity(this.value)">
+    </div>
+    <div class="slider-group">
+        <label><span>Image Size</span> <i class="ti ti-maximize"></i></label>
+        <input type="range" id="img-scale" min="0.1" max="5" step="0.05" value="1" oninput="setOverlayScale(this.value)">
+    </div>
     <div class="geo-btns">
         <button class="btn-submit" onclick="lockOverlay()">Lock Image</button>
         <button class="btn-cancel" onclick="removeOverlay()">Clear Image</button>
@@ -194,72 +202,90 @@ let watchId = null; let userMarker = null; let accuracyCircle = null;
 
 // --- Georeferencing Overlay System ---
 let refOverlay = null;
-let refMarker1 = null;
-let refMarker2 = null;
+let refMarkerCenter = null;
+let baseLatSpan = 0.005; // Default height of the image in coordinates
+let baseLngSpan = 0.005; // Default width of the image in coordinates
 
 function loadImageOverlay(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
+    
     reader.onload = function(e) {
         const imgUrl = e.target.result;
-        const center = map.getCenter();
         
-        // Create initial rough boundaries around the center of the screen
-        const bounds1 = [center.lat + 0.003, center.lng - 0.003];
-        const bounds2 = [center.lat - 0.003, center.lng + 0.003];
+        // Load image silently to get original aspect ratio
+        const tempImg = new Image();
+        tempImg.onload = function() {
+            const aspectRatio = tempImg.width / tempImg.height;
+            const center = map.getCenter();
+            
+            // Adjust longitude span based on latitude to prevent distortion in Web Mercator projection
+            const cosLat = Math.cos(center.lat * Math.PI / 180);
+            baseLngSpan = (baseLatSpan * aspectRatio) / cosLat;
 
-        removeOverlay(); // Clean up existing if any
+            removeOverlay(); // Clean up existing if any
 
-        refOverlay = L.imageOverlay(imgUrl, [bounds1, bounds2], {opacity: 0.5, zIndex: 10}).addTo(map);
-        
-        const icon1 = L.divIcon({className: 'corner-marker', html: '1', iconSize: [30, 30]});
-        const icon2 = L.divIcon({className: 'corner-marker', html: '2', iconSize: [30, 30]});
-        
-        refMarker1 = L.marker(bounds1, {draggable: true, icon: icon1, zIndexOffset: 3000}).addTo(map);
-        refMarker2 = L.marker(bounds2, {draggable: true, icon: icon2, zIndexOffset: 3000}).addTo(map);
+            // Reset Sliders
+            document.getElementById('img-scale').value = 1;
+            document.getElementById('img-opacity').value = 0.5;
 
-        refMarker1.on('drag', updateOverlayBounds);
-        refMarker2.on('drag', updateOverlayBounds);
+            // Draw Initial Image
+            const bounds = getBoundsFromCenter(center, 1);
+            refOverlay = L.imageOverlay(imgUrl, bounds, {opacity: 0.5, zIndex: 10}).addTo(map);
+            
+            // Create Center Drag Pin
+            const dragIcon = L.divIcon({className: 'center-drag-marker', html: '<i class="ti ti-arrows-move"></i>', iconSize: [36, 36], iconAnchor: [18, 18]});
+            refMarkerCenter = L.marker(center, {draggable: true, icon: dragIcon, zIndexOffset: 3000}).addTo(map);
 
-        document.getElementById('geo-controls').style.display = 'block';
-        document.getElementById('img-opacity').value = 0.5;
-        
-        // Automatically switch to view mode so user can pan/drag without accidentally drawing lines
-        setMode('view');
+            // Update image bounds dynamically as the center pin is dragged
+            refMarkerCenter.on('drag', function(e) {
+                const newCenter = e.target.getLatLng();
+                const currentScale = parseFloat(document.getElementById('img-scale').value);
+                refOverlay.setBounds(getBoundsFromCenter(newCenter, currentScale));
+            });
+
+            document.getElementById('geo-controls').style.display = 'block';
+            setMode('view'); // Auto switch to pan mode so drawing lines doesn't trigger
+        };
+        tempImg.src = imgUrl;
     }
     reader.readAsDataURL(file);
-    event.target.value = ''; // Reset input
+    event.target.value = ''; // Reset file input
 }
 
-function updateOverlayBounds() {
-    if(!refOverlay || !refMarker1 || !refMarker2) return;
-    const p1 = refMarker1.getLatLng();
-    const p2 = refMarker2.getLatLng();
-    refOverlay.setBounds(L.latLngBounds(p1, p2));
+// Math helper to keep aspect ratio based on a center point
+function getBoundsFromCenter(center, scale) {
+    const latHalf = (baseLatSpan * scale) / 2;
+    const lngHalf = (baseLngSpan * scale) / 2;
+    return L.latLngBounds(
+        [center.lat - latHalf, center.lng - lngHalf],
+        [center.lat + latHalf, center.lng + lngHalf]
+    );
+}
+
+function setOverlayScale(val) {
+    if(!refOverlay || !refMarkerCenter) return;
+    const center = refMarkerCenter.getLatLng();
+    refOverlay.setBounds(getBoundsFromCenter(center, parseFloat(val)));
 }
 
 function setOverlayOpacity(val) {
-    if(refOverlay) refOverlay.setOpacity(val);
+    if(refOverlay) refOverlay.setOpacity(parseFloat(val));
 }
 
 function lockOverlay() {
-    if(refMarker1) map.removeLayer(refMarker1);
-    if(refMarker2) map.removeLayer(refMarker2);
-    refMarker1 = null; refMarker2 = null;
-    
-    // Change UI state
-    document.querySelector('#geo-controls .btn-submit').style.display = 'none';
-    alert("Image locked in place. You can now trace over it.");
+    if(refMarkerCenter) map.removeLayer(refMarkerCenter);
+    refMarkerCenter = null;
+    document.getElementById('geo-controls').style.display = 'none';
+    alert("Image locked in place. You can now trace boundaries over it.");
 }
 
 function removeOverlay() {
     if(refOverlay) map.removeLayer(refOverlay);
-    if(refMarker1) map.removeLayer(refMarker1);
-    if(refMarker2) map.removeLayer(refMarker2);
-    refOverlay = null; refMarker1 = null; refMarker2 = null;
+    if(refMarkerCenter) map.removeLayer(refMarkerCenter);
+    refOverlay = null; refMarkerCenter = null;
     document.getElementById('geo-controls').style.display = 'none';
-    document.querySelector('#geo-controls .btn-submit').style.display = 'block';
 }
 
 // --- GPS Tracking Engine ---
