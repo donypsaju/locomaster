@@ -5,19 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <title>Census Layout Mapper</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
 
 <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-    body { height: 100vh; display: flex; flex-direction: column; background: #f8f9fa; overflow: hidden; }
     
-    #map { flex: 1; z-index: 1; }
+    html, body { height: 100%; width: 100%; overflow: hidden; background: #f8f9fa; touch-action: manipulation; }
     
+    /* Lock map to the background */
+    #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; z-index: 1; }
+    
+    /* Anchor toolbar exactly to the bottom */
     #toolbar {
+        position: absolute; bottom: 0; left: 0; right: 0;
         background: #ffffff; border-top: 2px solid #dee2e6; z-index: 1000;
-        display: flex; gap: 8px; padding: 12px; overflow-x: auto; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        display: flex; gap: 8px; padding: 12px; 
+        padding-bottom: calc(12px + env(safe-area-inset-bottom));
+        overflow-x: auto; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
     }
     
     .btn {
@@ -58,7 +64,7 @@
         font-size: 13px; font-weight: bold; z-index: 1000; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
 
-    #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 16px; }
+    #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.6); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 16px; }
     #modal { background: #fff; width: 100%; max-width: 400px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
     .form-group { margin-bottom: 12px; }
     .form-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: #495057; }
@@ -69,7 +75,7 @@
 
     /* Georeferencing Overlay Controls */
     #geo-controls {
-        display: none; position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); z-index: 1500;
+        display: none; position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); z-index: 1500;
         background: #fff; padding: 12px 16px; border-radius: 12px; border: 1px solid #ced4da;
         box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 90%; max-width: 350px; text-align: center;
     }
@@ -233,9 +239,8 @@ function loadImageOverlay(event) {
             const cosLat = Math.cos(center.lat * Math.PI / 180);
             baseLngSpan = (baseLatSpan * aspectRatio) / cosLat;
 
-            removeOverlay(); // Clean up if replacing
+            removeOverlay();
 
-            // Reset Sliders & Logic
             document.getElementById('img-scale').value = 1;
             document.getElementById('img-opacity').value = 0.5;
             document.getElementById('img-rotate').value = 0;
@@ -251,16 +256,14 @@ function loadImageOverlay(event) {
                 const newCenter = e.target.getLatLng();
                 const currentScale = parseFloat(document.getElementById('img-scale').value);
                 refOverlay.setBounds(getBoundsFromCenter(newCenter, currentScale));
-                applyRotation(); // Keep rotation pinned during drag
+                applyRotation();
             });
 
-            // UI Swaps
             document.getElementById('geo-controls').style.display = 'block';
             document.getElementById('btn-photo-upload').style.display = 'none';
             document.getElementById('btn-photo-clear').style.display = 'flex';
             setMode('view'); 
             
-            // Ensure rotation is applied as soon as the image DOM element is injected
             refOverlay.on('load', applyRotation);
             applyRotation();
         };
@@ -270,7 +273,6 @@ function loadImageOverlay(event) {
     event.target.value = ''; 
 }
 
-// Map events constantly overwrite the image position/transform during zoom. We must re-apply rotation.
 map.on('zoom viewreset zoomend zoomanim move moveend', function() {
     requestAnimationFrame(applyRotation);
 });
@@ -280,14 +282,11 @@ function applyRotation() {
     const el = refOverlay.getElement();
     if (!el) return;
     
-    // Set origin to exact center of the bounding box
     el.style.transformOrigin = '50% 50%';
     let currentTransform = el.style.transform || '';
     
-    // Strip out any previously applied rotate statement
     currentTransform = currentTransform.replace(/ rotate\([-\d.]+deg\)/g, '');
     
-    // Append the new rotation safely to Leaflet's base transform
     if (imgAngle !== 0) {
         el.style.transform = currentTransform + ` rotate(${imgAngle}deg)`;
     } else {
@@ -324,7 +323,7 @@ function lockOverlay() {
     if(refMarkerCenter) map.removeLayer(refMarkerCenter);
     refMarkerCenter = null;
     document.getElementById('geo-controls').style.display = 'none';
-    alert("Image locked in place! You can now draw over it. Click 'Clear Photo' in the toolbar to remove it later.");
+    alert("Image locked in place. You can now draw over it. Click 'Clear Photo' in the toolbar to remove it later.");
 }
 
 function removeOverlay() {
@@ -332,7 +331,6 @@ function removeOverlay() {
     if(refMarkerCenter) map.removeLayer(refMarkerCenter);
     refOverlay = null; refMarkerCenter = null; imgAngle = 0;
     
-    // UI Swaps
     document.getElementById('geo-controls').style.display = 'none';
     document.getElementById('btn-photo-upload').style.display = 'flex';
     document.getElementById('btn-photo-clear').style.display = 'none';
