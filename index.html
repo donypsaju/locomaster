@@ -65,6 +65,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 }
 #modebadge i{font-size:13px}
 
+/* Map type switcher */
+#maptype{
+  position:absolute;top:calc(var(--hh)+8px);right:10px;z-index:500;
+  display:flex;gap:4px;
+}
+.mt{background:var(--card);border:1px solid var(--border2);border-radius:6px;
+  padding:4px 8px;font-size:10px;color:var(--text2);cursor:pointer;transition:.15s;
+  user-select:none;-webkit-user-select:none;
+}
+.mt.active{background:var(--glow);border-color:var(--accent);color:var(--accent)}
+
 /* ── STATUS TOAST ── */
 #status{
   position:absolute;top:calc(var(--hh)+8px);left:50%;transform:translateX(-50%);
@@ -87,7 +98,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 }
 #drag-hint.on{display:flex}
 
-/* ── EDIT POPUP (shows when dragging/editing a point) ── */
+/* ── EDIT POPUP ── */
 .edit-popup{font-size:11px}
 .edit-popup b{font-size:12px;display:block;margin-bottom:6px}
 .edit-popup .ep-row{display:flex;gap:5px;margin-top:6px}
@@ -135,11 +146,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 /* ── CENSUS SHAPES ── */
 .census-wrap{display:flex;align-items:center;justify-content:center;position:relative}
 
-/* Pucca = filled/outlined square */
+/* Houses */
 .sh-pucca{width:16px;height:16px;border:2.5px solid #fff;background:#fff}
 .sh-pucca.nr{background:#777;border-color:#ccc}
-
-/* Kutcha = triangle */
 .sh-kutcha{
   width:0;height:0;
   border-left:9px solid transparent;border-right:9px solid transparent;border-bottom:16px solid #fff;
@@ -152,8 +161,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 .sh-kutcha.nr::after{border-bottom-color:#777}
 .sh-kutcha.nr{border-bottom-color:#ccc}
 
-/* Institution = circle */
-.sh-inst{width:16px;height:16px;border-radius:50%;background:var(--amber);border:2.5px solid #fff}
+/* Institution / other features */
+.sh-inst{width:18px;height:18px;border-radius:50%;background:var(--amber);border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff}
+
+/* Water source */
+.sh-water{width:18px;height:18px;border-radius:50%;background:var(--cyan);border:2.5px solid #fff;}
 
 /* GPS dot */
 .gps-pulse{
@@ -162,7 +174,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   animation:gpspulse 2s infinite;
 }
 
-/* DRAGGING state ring */
+/* Dragging ring */
 .sh-drag-ring{
   position:absolute;inset:-6px;border-radius:50%;
   border:2px dashed var(--amber);animation:rotatering 2s linear infinite;
@@ -185,7 +197,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 .gbtn:active{opacity:.7}
 .gbtn.pr{background:var(--accent);border-color:var(--accent2);color:#fff}
 
-/* Drag icon for overlay */
 .overlay-drag{
   background:var(--accent);color:#fff;border-radius:50%;border:2px solid rgba(255,255,255,.4);
   display:flex;align-items:center;justify-content:center;font-size:18px;
@@ -286,7 +297,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   </div>
 </div>
 
-<!-- ═══ STATUS ═══ -->
+<!-- ═══ MAP TYPE SWITCHER ═══ -->
+<div id="maptype">
+  <div class="mt active" onclick="switchMapType('osm')">Map</div>
+  <div class="mt" onclick="switchMapType('sat')">Sat</div>
+  <div class="mt" onclick="switchMapType('dark')">Dark</div>
+</div>
+
+<!-- ═══ STATUS TOAST ═══ -->
 <div id="status"><i id="sicon" class="ti ti-info-circle"></i><span id="smsg"></span></div>
 
 <!-- ═══ DRAG HINT ═══ -->
@@ -340,41 +358,73 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
     <div class="mdragger"></div>
     <h3 id="modal-title"><i class="ti ti-home-plus" style="color:var(--accent)"></i>Feature Details</h3>
 
-    <div id="form-point">
+    <!-- POINT FEATURE FORM -->
+    <div id="form-point" style="display:none">
       <div class="fg">
-        <label class="fl">Building / Feature Type</label>
-        <select class="fi" id="pt-type">
-          <option value="pucca">Pucca Building</option>
-          <option value="kutcha">Kutcha / Thatched Building</option>
-          <option value="inst">Institution / Temple / Well</option>
+        <label class="fl">Feature Type</label>
+        <select class="fi" id="pt-type" onchange="onFeatureTypeChange()">
+          <optgroup label="Buildings">
+            <option value="pucca-house">Pucca House</option>
+            <option value="kutcha-house">Kutcha House</option>
+          </optgroup>
+          <optgroup label="Religious Places">
+            <option value="temple">Temple</option>
+            <option value="mosque">Mosque</option>
+            <option value="church">Church</option>
+            <option value="gurudwara">Gurudwara</option>
+          </optgroup>
+          <optgroup label="Public Buildings">
+            <option value="school">School</option>
+            <option value="dispensary">Dispensary</option>
+            <option value="panchayat-office">Panchayat Office</option>
+            <option value="post-office">Post Office</option>
+          </optgroup>
+          <optgroup label="Water Sources">
+            <option value="well-handpump">Well / Hand Pump</option>
+            <option value="pond">Pond</option>
+          </optgroup>
+          <optgroup label="Other">
+            <option value="other-institution">Other Institution</option>
+            <option value="other-building">Other Building</option>
+          </optgroup>
         </select>
       </div>
-      <div class="fg">
+
+      <div class="fg" id="fg-usage">
         <label class="fl">Usage Category</label>
         <select class="fi" id="pt-subtype">
           <option value="res">Residential</option>
           <option value="nr">Non-Residential</option>
         </select>
       </div>
+
       <div class="fg">
         <label class="fl">Number / Label</label>
         <input type="text" class="fi" id="pt-name" placeholder="e.g. 101 or Panchayat Office" autocomplete="off"/>
       </div>
+
+      <div class="fg" id="fg-census">
+        <label class="fl">Census Houses in Building</label>
+        <input type="number" class="fi" id="pt-census" placeholder="1" min="1" value="1" autocomplete="off"/>
+      </div>
+
       <div class="fg">
         <label class="fl">Note (optional)</label>
         <input type="text" class="fi" id="pt-note" placeholder="Any extra detail…" autocomplete="off"/>
       </div>
     </div>
 
+    <!-- LINE FEATURE FORM -->
     <div id="form-line" style="display:none">
       <div class="fg">
-        <label class="fl">Path / Feature Type</label>
+        <label class="fl">Road / Path Type</label>
         <select class="fi" id="ln-type">
-          <option value="pucca-road">Pucca Road</option>
-          <option value="kutcha-road">Kutcha Road</option>
+          <option value="good-road">Good Road (Pucca)</option>
+          <option value="bad-road">Bad Road (Kutcha)</option>
           <option value="pathway">Pathway / Footpath</option>
           <option value="railway">Railway Line</option>
-          <option value="river">River / Canal</option>
+          <option value="river">River</option>
+          <option value="canal">Canal</option>
         </select>
       </div>
       <div class="fg">
@@ -404,10 +454,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
     <div class="tb" id="tb-boundary" onclick="setMode('boundary')" title="Boundary [B]">
       <i class="ti ti-shape"></i>Boundary
     </div>
-    <div class="tb" id="tb-point" onclick="setMode('point')" title="Mark Building [P]">
+    <div class="tb" id="tb-point" onclick="setMode('point')" title="Mark Building / Institution [P]">
       <i class="ti ti-home-plus"></i>Building
     </div>
-    <div class="tb" id="tb-line" onclick="setMode('line')" title="Draw Road [L]">
+    <div class="tb" id="tb-line" onclick="setMode('line')" title="Draw Road / River [L]">
       <i class="ti ti-road"></i>Road
     </div>
     <div class="tb" id="tb-arrow" onclick="setMode('arrow')" title="Numbering Arrow [A]">
@@ -425,6 +475,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
     <div class="tb" onclick="undoLast()" title="Undo last [Z]">
       <i class="ti ti-arrow-back-up"></i>Undo
     </div>
+    <div class="tb" onclick="fitToArea()" title="Fit to Area">
+      <i class="ti ti-arrows-maximize"></i>Focus
+    </div>
+    <div class="tb" onclick="printMap()" title="Print Map">
+      <i class="ti ti-printer"></i>Print
+    </div>
     <div class="tb" onclick="exportData()" title="Export">
       <i class="ti ti-download"></i>Export
     </div>
@@ -433,10 +489,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
     </div>
   </div>
   <div id="tbmeta">
-    <span><i class="ti ti-home" style="font-size:10px;color:var(--accent)"></i><b id="cnt-bldg">0</b> bldgs</span>
-    <span><i class="ti ti-road" style="font-size:10px;color:var(--cyan)"></i><b id="cnt-road">0</b> roads</span>
+    <span><i class="ti ti-home" style="font-size:10px;color:var(--accent)"></i><b id="cnt-bldg">0</b> points</span>
+    <span><i class="ti ti-road" style="font-size:10px;color:var(--cyan)"></i><b id="cnt-road">0</b> lines</span>
     <span><i class="ti ti-shape" style="font-size:10px;color:var(--green)"></i><b id="cnt-bndy">0</b> boundaries</span>
-    <span><i class="ti ti-arrow-right" style="font-size:10px;color:var(--red)"></i><b id="cnt-arrow">0</b> arrows</span>
   </div>
 </div>
 
@@ -457,27 +512,36 @@ const TILES = {
   sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:20}),
   dark:L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CARTO',maxZoom:22})
 };
-TILES.osm.addTo(map);
+let currentBase = TILES.osm;
+currentBase.addTo(map);
+
+function switchMapType(type){
+  map.removeLayer(currentBase);
+  currentBase = TILES[type];
+  currentBase.addTo(map);
+  document.querySelectorAll('.mt').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`.mt[onclick="switchMapType('${type}')"]`).classList.add('active');
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // STATE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-let features   = JSON.parse(localStorage.getItem('census-v2')||'[]');
+let features   = JSON.parse(localStorage.getItem('census-v3')||'[]');
 let currentMode= 'view';
 let tempCoords = [];
 let tempLayer  = null;
 let mkLayer    = L.featureGroup().addTo(map);
 let watchId    = null, youMk=null, youCircle=null;
 let pendingData= null;
-let editingId  = null;    // id of feature being edited
-let ctxFid     = null;    // feature id for context menu
-let lastDeleted= null;    // for undo
+let editingId  = null;
+let ctxFid     = null;
+let lastDeleted= null;
 let undoTimer  = null;
 
 // Drag state
-let draggingMk    = null; // the Leaflet marker currently being dragged
-let draggingFid   = null; // feature id being repositioned
-let allMarkerRefs = {};   // fid -> Leaflet marker (for draggable access)
+let draggingMk    = null;
+let draggingFid   = null;
+let allMarkerRefs = {};
 
 // Image overlay
 let refOverlay  = null, refMarkerCenter=null;
@@ -487,9 +551,7 @@ let baseLatSpan = 0.005, baseLngSpan=0.005, imgAngle=0;
 // GPS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 let gpsOn=false;
-function toggleGPS(){
-  gpsOn?stopGPS():startGPS();
-}
+function toggleGPS(){ gpsOn?stopGPS():startGPS(); }
 function startGPS(){
   if(!navigator.geolocation){showStatus('GPS not supported','err');return}
   const dot=document.getElementById('gdot');
@@ -506,8 +568,16 @@ function startGPS(){
     if(!youMk){
       youMk=L.marker(ll,{
         icon:L.divIcon({className:'',html:'<div class="gps-pulse"></div>',iconSize:[14,14],iconAnchor:[7,7]}),
+        draggable:true,
         zIndexOffset:2000
       }).addTo(map).bindPopup('<b style="font-size:12px">📍 You are here</b>');
+      youMk.on('dragend',function(e){
+        const pos=e.target.getLatLng();
+        if(youCircle){
+          map.removeLayer(youCircle);
+          youCircle=L.circle([pos.lat,pos.lng],{radius:acc,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:.08,weight:1,dashArray:'4,4'}).addTo(map);
+        }
+      });
       map.setView(ll,18);
     } else { youMk.setLatLng(ll); }
     if(youCircle) map.removeLayer(youCircle);
@@ -541,37 +611,32 @@ function gpsErrMsg(err){
 const MODES={
   view:     {icon:'ti-hand-stop',   label:'Pan'},
   boundary: {icon:'ti-shape',       label:'Draw Boundary'},
-  point:    {icon:'ti-home-plus',   label:'Tap to Place Building'},
-  line:     {icon:'ti-road',        label:'Tap Road Points · Tap last point again to finish'},
-  arrow:    {icon:'ti-arrow-move-right',label:'Tap Numbering Path · Tap last point again to finish'}
+  point:    {icon:'ti-home-plus',   label:'Mark Building/Place'},
+  line:     {icon:'ti-road',        label:'Draw Road / River'},
+  arrow:    {icon:'ti-arrow-move-right',label:'Numbering Arrows'}
 };
 function setMode(m){
-  // Cancel drag mode if switching modes
   if(draggingMk){endDragMode(false);}
   currentMode=m;
-
-  // Clear temp drawing
   tempCoords=[];
   if(tempLayer){map.removeLayer(tempLayer);tempLayer=null;}
-
-  // Update toolbar highlights
   document.querySelectorAll('.tb[id^=tb-]').forEach(b=>b.classList.remove('on','on-r'));
   const btn=document.getElementById('tb-'+m);
   if(btn) btn.classList.add('on');
-
-  // Update mode badge
   const mdata=MODES[m]||MODES.view;
   document.getElementById('modeicon').className='ti '+mdata.icon;
   document.getElementById('modetxt').textContent=mdata.label;
 
-  // Status hint
-  if(m==='point') showStatus('Tap map to place building','ok');
-  else if(m==='line') showStatus('Tap points to draw road — tap last point again to finish','ok');
-  else if(m==='arrow') showStatus('Tap path for numbering arrows — tap last point again to end','ok');
-  else if(m==='boundary') showStatus('Draw block boundary — tap last point again to close','ok');
+  if(m==='point' && gpsOn && youMk){
+    const pos = youMk.getLatLng();
+    openModal('point',[pos.lat,pos.lng]);
+    return;
+  }
+  if(m==='point') showStatus('Tap map to place feature','ok');
+  else if(m==='line') showStatus('Tap points for road/river — tap last again to finish','ok');
+  else if(m==='arrow') showStatus('Tap arrow path — tap last again to finish','ok');
+  else if(m==='boundary') showStatus('Draw boundary — tap last again to close','ok');
   else clearStatus();
-
-  // Hide drag hint if returning to view
   if(m==='view') document.getElementById('drag-hint').classList.remove('on');
 }
 
@@ -581,33 +646,24 @@ function setMode(m){
 map.on('click',e=>{
   closeCtx();
   if(currentMode==='view') return;
-
   if(currentMode==='point'){
-    // Place at clicked location
     openModal('point',[e.latlng.lat,e.latlng.lng]);
     return;
   }
-
   if(['line','arrow','boundary'].includes(currentMode)){
-    // Check if tapping near the last point = finish
     if(tempCoords.length>1){
       const last=tempCoords[tempCoords.length-1];
-      if(map.distance(last,e.latlng)<12){
-        finishPath();return;
-      }
+      if(map.distance(last,e.latlng)<12){ finishPath(); return; }
     }
     tempCoords.push([e.latlng.lat,e.latlng.lng]);
     redrawTemp();
-    if(tempCoords.length===1) showStatus('Keep tapping to add more points · Tap last point again to finish','ok');
+    if(tempCoords.length===1) showStatus('Keep tapping — tap last point again to finish','ok');
   }
 });
-
-// Double-click also finishes
 map.on('dblclick',e=>{
   L.DomEvent.stopPropagation(e);
-  if(['line','arrow','boundary'].includes(currentMode)&&tempCoords.length>1){finishPath();}
+  if(['line','arrow','boundary'].includes(currentMode)&&tempCoords.length>1) finishPath();
 });
-
 function redrawTemp(){
   if(tempLayer){map.removeLayer(tempLayer);tempLayer=null;}
   if(!tempCoords.length) return;
@@ -617,174 +673,119 @@ function redrawTemp(){
     const col=currentMode==='arrow'?'#ef4444':'#06b6d4';
     tempLayer=L.polyline(tempCoords,{color:col,weight:3,dashArray:currentMode==='arrow'?'5,5':''}).addTo(map);
   }
-  // Show temp point count
-  showStatus(`${tempCoords.length} point${tempCoords.length>1?'s':''} — tap last point again to finish`,'ok');
 }
-
 function finishPath(){
   if(tempCoords.length<2){showStatus('Need at least 2 points','warn');return;}
   if(currentMode==='line') openModal('line',[...tempCoords]);
   else savePathFeature(currentMode,[...tempCoords]);
-  tempCoords=[];
-  if(tempLayer){map.removeLayer(tempLayer);tempLayer=null;}
+  tempCoords=[]; if(tempLayer){map.removeLayer(tempLayer);tempLayer=null;}
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// DRAGGABLE MARKER SYSTEM
+// DRAGGABLE MARKER SYSTEM (unchanged)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-/**
- * DRAG FLOW:
- * 1. User right-clicks / long-presses a point marker → context menu
- * 2. Selects "Move / reposition"  → enterDragMode(fid)
- * 3. Marker becomes draggable, gets amber ring, drag-hint appears
- * 4. User drags to exact position
- * 5. User taps the marker again → popup with "Confirm" or "Cancel"
- * 6. On Confirm → feature coords updated, renderAll(), exitDragMode()
- */
-
 function enterDragMode(fid){
-  if(draggingMk) endDragMode(false); // cancel previous
+  if(draggingMk) endDragMode(false);
   draggingFid=fid;
-  const mk=allMarkerRefs[fid];
-  if(!mk) return;
-
+  const mk=allMarkerRefs[fid]; if(!mk) return;
   draggingMk=mk;
-  mk.dragging.enable();
-  mk.setOpacity(.75);
-
-  // Add animated ring
+  mk.dragging.enable(); mk.setOpacity(.75);
   const el=mk.getElement();
   if(el){
     const ring=document.createElement('div');
-    ring.className='sh-drag-ring';ring.id='dragring-'+fid;
-    el.style.position='relative';
-    el.appendChild(ring);
+    ring.className='sh-drag-ring'; ring.id='dragring-'+fid;
+    el.style.position='relative'; el.appendChild(ring);
   }
-
-  // Show hint bar
   document.getElementById('drag-hint').classList.add('on');
-
-  // (Bug fix) Do NOT add a separate 'once' click handler.
-  // The permanent marker click handler already checks draggingFid and shows the confirm popup.
   showStatus('Drag marker to exact position, then tap it to confirm','warn',0);
-  setMode('view');
-  closeCtx();
+  setMode('view'); closeCtx();
 }
-
 function showDragConfirmPopup(mk,fid){
   const f=features.find(x=>x.id===fid);
   const latlng=mk.getLatLng();
-  const content=`
-    <div class="edit-popup">
-      <b>📍 ${f?esc(f.name||f.type||'Feature'):''}</b>
-      <div style="font-size:9px;color:var(--text3);margin-bottom:6px">
-        ${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}
-      </div>
-      <div class="ep-row">
-        <button class="ep-btn pr" onclick="confirmDrag()"><i class="ti ti-check" style="font-size:12px"></i> Confirm</button>
-        <button class="ep-btn" onclick="endDragMode(false);map.closePopup()"><i class="ti ti-x" style="font-size:12px"></i> Cancel</button>
-      </div>
-    </div>`;
+  const content=`<div class="edit-popup"><b>📍 ${f?esc(f.name||f.type||'Feature'):''}</b>
+    <div style="font-size:9px;color:var(--text3);margin-bottom:6px">${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}</div>
+    <div class="ep-row"><button class="ep-btn pr" onclick="confirmDrag()"><i class="ti ti-check" style="font-size:12px"></i> Confirm</button>
+    <button class="ep-btn" onclick="endDragMode(false);map.closePopup()"><i class="ti ti-x" style="font-size:12px"></i> Cancel</button></div></div>`;
   mk.bindPopup(content,{closeButton:false,className:'',maxWidth:200}).openPopup();
 }
-
 window.confirmDrag=function(){
   if(!draggingMk||draggingFid==null) return;
   const f=features.find(x=>x.id===draggingFid);
-  if(f){
-    const ll=draggingMk.getLatLng();
-    f.coords=[ll.lat,ll.lng];
-    saveData();
-  }
-  endDragMode(true);
-  map.closePopup();
-  showStatus('Position updated ✓','ok',2000);
+  if(f){ const ll=draggingMk.getLatLng(); f.coords=[ll.lat,ll.lng]; saveData(); }
+  endDragMode(true); map.closePopup(); showStatus('Position updated ✓','ok',2000);
 };
-
 function endDragMode(confirmed){
   if(!draggingMk) return;
-  draggingMk.dragging.disable();
-  draggingMk.setOpacity(1);
-  // Remove ring
-  const el=draggingMk.getElement();
-  if(el){const ring=el.querySelector('.sh-drag-ring');if(ring)ring.remove();}
+  draggingMk.dragging.disable(); draggingMk.setOpacity(1);
+  const el=draggingMk.getElement(); if(el){const ring=el.querySelector('.sh-drag-ring');if(ring)ring.remove();}
   draggingMk=null; draggingFid=null;
   document.getElementById('drag-hint').classList.remove('on');
-  if(!confirmed) renderAll(); // re-render to reset position
-  clearStatus();
+  if(!confirmed) renderAll(); clearStatus();
 }
-
-// Snap to GPS
 function snapToGPS(fid){
-  if(!youMk){showStatus('GPS not active — enable GPS first','err');return;}
+  if(!youMk){showStatus('GPS not active','err');return;}
   const f=features.find(x=>x.id===fid);
   if(!f||f.geometryType!=='point') return;
-  const ll=youMk.getLatLng();
-  f.coords=[ll.lat,ll.lng];
-  saveData(); renderAll();
-  showStatus('Snapped to GPS position ✓','ok',2000);
+  const ll=youMk.getLatLng(); f.coords=[ll.lat,ll.lng];
+  saveData(); renderAll(); showStatus('Snapped to GPS ✓','ok',2000);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// CONTEXT MENU (right-click + long press)
+// CONTEXT MENU
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function openCtxFor(fid,e){
   ctxFid=fid;
   const f=features.find(x=>x.id===fid);
   const isPoint=f&&f.geometryType==='point';
-
   document.getElementById('ctx-drag').style.display=isPoint?'flex':'none';
   document.getElementById('ctx-snap').style.display=isPoint?'flex':'none';
   document.getElementById('ctx-edit').style.display='flex';
-
   const mc=map.getContainer().getBoundingClientRect();
   const x=Math.min((e.clientX||e.pageX)-mc.left, mc.width-185);
   const y=Math.min((e.clientY||e.pageY)-mc.top, mc.height-200);
-  const m=document.getElementById('ctx');
-  m.style.left=x+'px'; m.style.top=y+'px';
-  m.classList.add('open');
+  const m=document.getElementById('ctx'); m.style.left=x+'px'; m.style.top=y+'px'; m.classList.add('open');
 }
 function closeCtx(){document.getElementById('ctx').classList.remove('open')}
 function ctxEdit(){closeCtx();if(ctxFid!=null)editFeature(ctxFid);}
 function ctxStartDrag(){closeCtx();if(ctxFid!=null)enterDragMode(ctxFid);}
 function ctxSnapGPS(){closeCtx();if(ctxFid!=null)snapToGPS(ctxFid);}
 function ctxDelete(){closeCtx();if(ctxFid!=null)deleteFeature(ctxFid);}
-
-// Long press on map for map-level context
 let lpTimer=null;
 map.getContainer().addEventListener('touchstart',ev=>{
-  lpTimer=setTimeout(()=>{
-    const t=ev.touches[0];
-    const mc=map.getContainer().getBoundingClientRect();
-    const latlng=map.containerPointToLatLng([t.clientX-mc.left,t.clientY-mc.top]);
-    // Only for view mode
-    if(currentMode==='view'){
-      showStatus('Long-press: use toolbar to select mode','ok',2000);
-    }
-  },700);
+  lpTimer=setTimeout(()=>{ if(currentMode==='view') showStatus('Long-press: use toolbar','ok',2000); },700);
 },{passive:true});
 map.getContainer().addEventListener('touchend',()=>clearTimeout(lpTimer),{passive:true});
 map.getContainer().addEventListener('touchmove',()=>clearTimeout(lpTimer),{passive:true});
 map.on('click',closeCtx);
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MODAL — SAVE / EDIT FEATURES
+// MODAL — EXTENDED WITH ALL FEATURE TYPES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function onFeatureTypeChange(){
+  const type = document.getElementById('pt-type').value;
+  const isHouse = type === 'pucca-house' || type === 'kutcha-house';
+  document.getElementById('fg-usage').style.display = isHouse ? 'block' : 'none';
+  document.getElementById('fg-census').style.display = isHouse ? 'block' : 'none';
+}
+
 function openModal(type,coords,existingFeature=null){
   pendingData={type,coords};
   editingId=existingFeature?existingFeature.id:null;
-
-  document.getElementById('form-point').style.display=type==='point'?'block':'none';
-  document.getElementById('form-line').style.display=type==='line'?'block':'none';
+  document.getElementById('form-point').style.display = type==='point'?'block':'none';
+  document.getElementById('form-line').style.display = type==='line'?'block':'none';
 
   if(type==='point'){
-    document.getElementById('pt-type').value = existingFeature?existingFeature.type:'pucca';
-    document.getElementById('pt-subtype').value = existingFeature?existingFeature.subtype:'res';
+    const ptype = existingFeature?existingFeature.type:'pucca-house';
+    document.getElementById('pt-type').value = ptype;
+    document.getElementById('pt-subtype').value = existingFeature?existingFeature.subtype||'res':'res';
     document.getElementById('pt-name').value = existingFeature?existingFeature.name||'':'';
+    document.getElementById('pt-census').value = existingFeature?existingFeature.censusCount||1:1;
     document.getElementById('pt-note').value = existingFeature?existingFeature.note||'':'';
+    onFeatureTypeChange();
   }
   if(type==='line'){
-    document.getElementById('ln-type').value = existingFeature?existingFeature.type:'pucca-road';
+    document.getElementById('ln-type').value = existingFeature?existingFeature.type:'good-road';
     document.getElementById('ln-name').value = existingFeature?existingFeature.name||'':'';
   }
   document.getElementById('modal-title').innerHTML =
@@ -795,13 +796,12 @@ function openModal(type,coords,existingFeature=null){
 }
 function closeModal(){
   document.getElementById('moverlay').classList.remove('open');
-  pendingData=null; editingId=null; setMode('view');
+  pendingData=null; editingId=null;
 }
 function saveFeature(){
   if(!pendingData) return;
   const {type,coords}=pendingData;
   let feature;
-
   if(editingId){
     feature=features.find(f=>f.id===editingId);
   } else {
@@ -809,16 +809,22 @@ function saveFeature(){
     features.push(feature);
   }
   feature.coords=coords;
-  feature.geometryType=type==='point'?'point':'line';
+  feature.geometryType = type==='point'?'point':'line';
 
   if(type==='point'){
-    feature.type=document.getElementById('pt-type').value;
-    feature.subtype=document.getElementById('pt-subtype').value;
-    feature.name=document.getElementById('pt-name').value.trim();
-    feature.note=document.getElementById('pt-note').value.trim();
+    feature.type = document.getElementById('pt-type').value;
+    if(feature.type==='pucca-house'||feature.type==='kutcha-house'){
+      feature.subtype = document.getElementById('pt-subtype').value;
+      feature.censusCount = parseInt(document.getElementById('pt-census').value)||1;
+    } else {
+      feature.subtype = 'nr'; // non-residential
+      feature.censusCount = 0;
+    }
+    feature.name = document.getElementById('pt-name').value.trim();
+    feature.note = document.getElementById('pt-note').value.trim();
   } else {
-    feature.type=document.getElementById('ln-type').value;
-    feature.name=document.getElementById('ln-name').value.trim();
+    feature.type = document.getElementById('ln-type').value;
+    feature.name = document.getElementById('ln-name').value.trim();
   }
   saveData(); closeModal(); renderAll();
   showStatus((editingId?'Updated':'Saved')+' — drag to reposition anytime','ok',2500);
@@ -832,74 +838,58 @@ function savePathFeature(gtype,coords){
 // EDIT / DELETE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function editFeature(fid){
-  const f=features.find(x=>x.id===fid);
-  if(!f) return;
+  const f=features.find(x=>x.id===fid); if(!f) return;
   const type=f.geometryType==='point'?'point':'line';
   openModal(type,f.coords,f);
 }
 function deleteFeature(fid){
-  const idx=features.findIndex(x=>x.id===fid);
-  if(idx<0) return;
-  // Cancel drag if deleting the feature currently being dragged
-  if(draggingFid===fid){ endDragMode(false); }
+  const idx=features.findIndex(x=>x.id===fid); if(idx<0) return;
+  if(draggingFid===fid) endDragMode(false);
   lastDeleted={feature:{...features[idx]},idx};
-  features.splice(idx,1);
-  saveData(); renderAll();
-  showUndoBar('Feature deleted');
+  features.splice(idx,1); saveData(); renderAll(); showUndoBar('Feature deleted');
 }
 function undoLast(){
   if(!features.length) return showStatus('Nothing to undo','warn');
-  const f=features.pop();
-  lastDeleted={feature:f};
-  saveData(); renderAll();
-  showUndoBar('Last feature removed');
+  const f=features.pop(); lastDeleted={feature:f}; saveData(); renderAll(); showUndoBar('Last feature removed');
 }
 function undoDelete(){
   if(!lastDeleted) return;
-  if(lastDeleted.idx != null){  // FIX: property is 'idx', not 'idxa'
-    features.splice(lastDeleted.idx,0,lastDeleted.feature);
-  } else {
-    features.push(lastDeleted.feature);
-  }
-  lastDeleted=null;
-  saveData(); renderAll(); dismissUndo();
-  showStatus('Restored ✓','ok',1500);
+  if(lastDeleted.idx != null) features.splice(lastDeleted.idx,0,lastDeleted.feature);
+  else features.push(lastDeleted.feature);
+  lastDeleted=null; saveData(); renderAll(); dismissUndo(); showStatus('Restored ✓','ok',1500);
 }
 function showUndoBar(msg){
   document.getElementById('undo-msg').textContent=msg;
   document.getElementById('undo-bar').classList.add('on');
-  clearTimeout(undoTimer);
-  undoTimer=setTimeout(dismissUndo,5000);
+  clearTimeout(undoTimer); undoTimer=setTimeout(dismissUndo,5000);
 }
-// FIX: define missing dismissUndo function
 function dismissUndo(){
   document.getElementById('undo-bar').classList.remove('on');
   clearTimeout(undoTimer);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// RENDER ENGINE
+// RENDER — EXTENDED ICONS FOR NEW TYPES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function renderAll(){
   mkLayer.clearLayers();
   allMarkerRefs={};
+  let bldg=0,road=0,bndy=0;
 
-  let bldg=0,road=0,bndy=0,arr=0;
-
-  // ── Boundaries first (bottom layer) ──
+  // Boundaries
   features.filter(f=>f.geometryType==='boundary').forEach(f=>{
-    const poly=L.polygon(f.coords,{color:'#fff',weight:3,fillOpacity:.05,dashArray:'10,8'}).addTo(mkLayer);
+    L.polygon(f.coords,{color:'#fff',weight:3,fillOpacity:.05,dashArray:'10,8'}).addTo(mkLayer);
     bndy++;
-    attachPolyEvents(poly,f.id);
   });
 
-  // ── Lines ──
+  // Lines (roads, rivers…)
   features.filter(f=>f.geometryType==='line').forEach(f=>{
-    let style={weight:4,color:'#fff'};
-    if(f.type==='kutcha-road'){style.dashArray='8,6';}
-    if(f.type==='pathway'){style.weight=2;style.dashArray='4,4';style.color='#a9a8c0';}
-    if(f.type==='railway'){style.color='#fff';style.dashArray='10,8';}
-    if(f.type==='river'){style.weight=5;style.color='#3b82f6';}
+    let style = {weight:4,color:'#fff'};
+    if(f.type==='bad-road') style.dashArray='8,6';
+    if(f.type==='pathway'){ style.weight=2; style.dashArray='4,4'; style.color='#a9a8c0'; }
+    if(f.type==='railway') style.dashArray='10,8';
+    if(f.type==='river'){ style.weight=4; style.color='#3b82f6'; }
+    if(f.type==='canal'){ style.weight=4; style.color='#06b6d4'; }
     const poly=L.polyline(f.coords,style).addTo(mkLayer);
     road++;
     if(f.name){
@@ -909,58 +899,63 @@ function renderAll(){
     attachPolyEvents(poly,f.id);
   });
 
-  // ── Arrows ──
+  // Arrows
   features.filter(f=>f.geometryType==='arrow').forEach(f=>{
     const poly=L.polyline(f.coords,{color:'#ef4444',weight:2,dashArray:'5,5'}).addTo(mkLayer);
-    arr++;
     try{
-      L.polylineDecorator(poly,{
-        patterns:[{offset:'10%',repeat:'50px',symbol:L.Symbol.arrowHead({pixelSize:12,polygon:false,pathOptions:{stroke:true,color:'#ef4444',weight:3}})}]
-      }).addTo(mkLayer);
+      L.polylineDecorator(poly,{patterns:[{offset:'10%',repeat:'50px',symbol:L.Symbol.arrowHead({pixelSize:12,polygon:false,pathOptions:{stroke:true,color:'#ef4444',weight:3}})}]}).addTo(mkLayer);
     }catch(e){}
     attachPolyEvents(poly,f.id);
   });
 
-  // ── Point Markers (draggable) ──
+  // Points — houses + all other types
   features.filter(f=>f.geometryType==='point').forEach(f=>{
-    const isNR  = f.subtype==='nr';
-    let html='';
-    if(f.type==='pucca'){
-      html=`<div class="census-wrap"><div class="sh-pucca${isNR?' nr':''}"></div></div>`;
-    } else if(f.type==='kutcha'){
-      html=`<div class="census-wrap"><div class="sh-kutcha${isNR?' nr':''}"></div></div>`;
-    } else {
-      html=`<div class="census-wrap"><div class="sh-inst"></div></div>`;
-    }
-    const icon=L.divIcon({className:'',html,iconSize:[22,22],iconAnchor:[11,11]});
-
-    // Create marker — NOT draggable by default, dragging is entered via context menu
-    const mk=L.marker(f.coords,{icon,draggable:false,zIndexOffset:100}).addTo(mkLayer);
-
-    // Store reference for drag
-    allMarkerRefs[f.id]=mk;
     bldg++;
+    let html='';
+    let iconSize=[22,22];
+    let isHouse = (f.type==='pucca-house'||f.type==='kutcha-house');
+    if(isHouse){
+      const isNR = f.subtype==='nr';
+      if(f.type==='pucca-house') html=`<div class="census-wrap"><div class="sh-pucca${isNR?' nr':''}"></div></div>`;
+      else html=`<div class="census-wrap"><div class="sh-kutcha${isNR?' nr':''}"></div></div>`;
+    } else {
+      // Institution / special feature — colored circle with letter
+      const mapping = {
+        'temple':            {letter:'T', color:'#f97316'},
+        'mosque':            {letter:'M', color:'#10b981'},
+        'church':            {letter:'C', color:'#ef4444'},
+        'gurudwara':         {letter:'G', color:'#eab308'},
+        'school':            {letter:'S', color:'#8b5cf6'},
+        'dispensary':        {letter:'D', color:'#ec4899'},
+        'panchayat-office':  {letter:'P', color:'#14b8a6'},
+        'post-office':       {letter:'PO',color:'#78716c'},
+        'well-handpump':     {letter:'W', color:'#06b6d4'},
+        'pond':              {letter:'P', color:'#3b82f6'},
+        'other-institution': {letter:'I', color:'#a855f7'},
+        'other-building':    {letter:'B', color:'#9ca3af'}
+      };
+      const m = mapping[f.type] || {letter:'?',color:'#6b7280'};
+      html=`<div class="census-wrap"><div class="sh-inst" style="background:${m.color};width:20px;height:20px;border-radius:50%;font-size:9px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;">${m.letter}</div></div>`;
+      iconSize=[24,24];
+    }
+    const icon=L.divIcon({className:'',html,iconSize,iconAnchor:[iconSize[0]/2,iconSize[1]/2]});
+    const mk=L.marker(f.coords,{icon,draggable:false,zIndexOffset:100}).addTo(mkLayer);
+    allMarkerRefs[f.id]=mk;
 
-    // Label
-    if(f.name){
-      mk.bindTooltip(f.name,{permanent:true,direction:'right',className:'map-label',offset:[12,0]});
+    let labelText = '';
+    if(f.name) labelText = f.name;
+    if(f.censusCount && f.censusCount>1) labelText = labelText ? labelText+` (${f.censusCount})` : `(${f.censusCount})`;
+    else if(f.censusCount===1 && !f.name) labelText = '1';
+    if(labelText){
+      mk.bindTooltip(labelText,{permanent:true,direction:'right',className:'map-label',offset:[12,0]});
     }
 
-    // Tap / click on marker → context menu
     mk.on('click',function(e){
       L.DomEvent.stopPropagation(e);
-      // If in drag mode and this is the dragging marker → show confirm popup
       if(draggingFid===f.id){ showDragConfirmPopup(mk,f.id); return; }
       openCtxFor(f.id,e.originalEvent);
     });
-
-    // Right-click on desktop
-    mk.on('contextmenu',function(e){
-      L.DomEvent.stopPropagation(e);
-      openCtxFor(f.id,e.originalEvent);
-    });
-
-    // Touch long press on marker
+    mk.on('contextmenu',function(e){ L.DomEvent.stopPropagation(e); openCtxFor(f.id,e.originalEvent); });
     let mkLp=null;
     mk.on('mousedown touchstart',function(ev){
       mkLp=setTimeout(()=>{ openCtxFor(f.id,ev.originalEvent?.touches?.[0]||ev.originalEvent||ev); },600);
@@ -968,26 +963,40 @@ function renderAll(){
     mk.on('mouseup touchend mousemove touchmove',()=>clearTimeout(mkLp));
   });
 
-  // Update counts
   document.getElementById('cnt-bldg').textContent=bldg;
   document.getElementById('cnt-road').textContent=road;
   document.getElementById('cnt-bndy').textContent=bndy;
-  document.getElementById('cnt-arrow').textContent=arr;
 }
-
 function attachPolyEvents(poly,fid){
-  poly.on('click',function(e){
-    L.DomEvent.stopPropagation(e);
-    openCtxFor(fid,e.originalEvent);
-  });
-  poly.on('contextmenu',function(e){
-    L.DomEvent.stopPropagation(e);
-    openCtxFor(fid,e.originalEvent);
-  });
+  poly.on('click',function(e){ L.DomEvent.stopPropagation(e); openCtxFor(fid,e.originalEvent); });
+  poly.on('contextmenu',function(e){ L.DomEvent.stopPropagation(e); openCtxFor(fid,e.originalEvent); });
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// IMAGE OVERLAY (Georeferencing)
+// FIT TO AREA & PRINT (unchanged)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function fitToArea(){
+  const bounds = L.latLngBounds([]);
+  const boundaries = features.filter(f=>f.geometryType==='boundary');
+  if(boundaries.length) boundaries.forEach(f=>f.coords.forEach(c=>bounds.extend(c)));
+  else {
+    const allCoords = features.flatMap(f=>f.geometryType==='point'?[f.coords]:f.coords);
+    if(!allCoords.length){showStatus('No features','warn');return}
+    allCoords.forEach(c=>bounds.extend(c));
+  }
+  map.fitBounds(bounds,{padding:[20,20],maxZoom:20}); showStatus('Area focused ✓','ok',2000);
+}
+function printMap(){
+  document.body.classList.add('printing');
+  window.print();
+  document.body.classList.remove('printing');
+}
+const printStyle=document.createElement('style');
+printStyle.textContent=`@media print{body.printing #header,body.printing #toolbar,body.printing #status,body.printing #drag-hint,body.printing #ctx,body.printing #undo-bar,body.printing #moverlay,body.printing #geocontrols,body.printing #maptype{display:none!important}#map{position:absolute;top:0;left:0;bottom:0;right:0}}`;
+document.head.appendChild(printStyle);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// IMAGE OVERLAY (unchanged)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function loadImageOverlay(ev){
   const file=ev.target.files[0];if(!file)return;
@@ -1048,15 +1057,8 @@ function setOvScale(v){
   refOverlay.setBounds(getBoundsFromCenter(refMarkerCenter.getLatLng(),parseFloat(v)));
   applyRotation();
 }
-function setOvOpacity(v){
-  document.getElementById('opval').textContent=Math.round(v*100)+'%';
-  if(refOverlay)refOverlay.setOpacity(parseFloat(v));
-}
-function setOvRotation(v){
-  imgAngle=parseFloat(v);
-  document.getElementById('rotval').textContent=v+'°';
-  applyRotation();
-}
+function setOvOpacity(v){ document.getElementById('opval').textContent=Math.round(v*100)+'%'; if(refOverlay)refOverlay.setOpacity(parseFloat(v)); }
+function setOvRotation(v){ imgAngle=parseFloat(v); document.getElementById('rotval').textContent=v+'°'; applyRotation(); }
 function lockOverlay(){
   if(refMarkerCenter){map.removeLayer(refMarkerCenter);refMarkerCenter=null;}
   document.getElementById('geocontrols').classList.remove('on');
@@ -1072,9 +1074,9 @@ function removeOverlay(){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// DATA
+// DATA & EXPORT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function saveData(){localStorage.setItem('census-v2',JSON.stringify(features))}
+function saveData(){localStorage.setItem('census-v3',JSON.stringify(features))}
 function clearAll(){
   if(!confirm('Delete ALL features? This cannot be undone.'))return;
   features=[];saveData();renderAll();showStatus('All data cleared','warn',2000);
@@ -1084,13 +1086,13 @@ function exportData(){
   const blob=new Blob([JSON.stringify(features,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download='census_layout_'+new Date().toISOString().slice(0,10)+'.json'; // FIX: new Date()
+  a.download='census_layout_'+new Date().toISOString().slice(0,10)+'.json';
   a.click(); URL.revokeObjectURL(a.href);
   showStatus('Exported ✓','ok',2000);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// STATUS
+// STATUS & HELPERS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 let statusTimer=null;
 function showStatus(msg,type='ok',dur=3000){
@@ -1102,14 +1104,7 @@ function showStatus(msg,type='ok',dur=3000){
   clearTimeout(statusTimer);
   if(dur>0) statusTimer=setTimeout(clearStatus,dur);
 }
-function clearStatus(){
-  document.getElementById('status').className='';
-  clearTimeout(statusTimer);
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// HELPERS
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function clearStatus(){ document.getElementById('status').className=''; clearTimeout(statusTimer); }
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
 // Keyboard shortcuts
@@ -1122,18 +1117,14 @@ document.addEventListener('keydown',e=>{
   if(k==='b')setMode('boundary');
   if(k==='a')setMode('arrow');
   if(k==='z')undoLast();
-  if(k==='escape'){
-    closeCtx();closeModal();
-    if(draggingMk)endDragMode(false);
-    setMode('view');
-  }
+  if(k==='escape'){ closeCtx();closeModal();if(draggingMk)endDragMode(false);setMode('view'); }
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // INIT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 renderAll();
-showStatus('Tap toolbar to start — tap any marker to edit or move it','ok',5000);
+showStatus('GPS → fine‑tune → Mark Building / Road / Institution','ok',6000);
 </script>
 </body>
 </html>
