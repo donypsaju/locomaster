@@ -49,7 +49,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 .lbadge{background:var(--glow);border:1px solid var(--accent);color:var(--accent);font-size:9px;padding:1px 6px;border-radius:20px}
 #hsp{flex:1}
 
-/* Search box with dropdown */
+/* Search */
 #search-wrapper{position:relative;margin-right:8px}
 #searchbox{
   display:flex;align-items:center;background:var(--card);border:1px solid var(--border2);
@@ -66,7 +66,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 }
 #searchbox button:hover{color:var(--accent)}
 
-/* Suggestions dropdown */
+/* Suggestions */
 #suggestions{
   position:absolute;top:100%;left:0;right:0;margin-top:4px;
   background:var(--card2);border:1px solid var(--border2);border-radius:10px;
@@ -204,7 +204,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 .sh-kutcha.nr::after{border-bottom-color:#777}
 .sh-kutcha.nr{border-bottom-color:#ccc}
 .sh-inst{width:18px;height:18px;border-radius:50%;background:var(--amber);border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff}
-.sh-water{width:18px;height:18px;border-radius:50%;background:var(--cyan);border:2.5px solid #fff;}
 .gps-pulse{
   width:14px;height:14px;background:var(--accent);border:2px solid #fff;
   border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,.3),0 0 12px rgba(59,130,246,.6);
@@ -213,6 +212,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 .sh-drag-ring{
   position:absolute;inset:-6px;border-radius:50%;
   border:2px dashed var(--amber);animation:rotatering 2s linear infinite;
+}
+/* Arrow select ring */
+.sh-arrow-sel-ring{
+  position:absolute;inset:-5px;border-radius:50%;
+  border:2px solid var(--amber);box-shadow:0 0 8px var(--amber);
 }
 
 /* ── IMAGE OVERLAY CONTROLS ── */
@@ -510,7 +514,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
     <div class="tb" id="tb-line" onclick="setMode('line')" title="Draw Road / River [L]">
       <i class="ti ti-road"></i>Road
     </div>
-    <div class="tb" id="tb-arrow" onclick="setMode('arrow')" title="Numbering Arrow [A]">
+    <div class="tb" id="tb-arrow" onclick="setMode('arrow')" title="Arrow Between Buildings [A]">
       <i class="ti ti-arrow-move-right"></i>Number
     </div>
     <!-- Photo overlay -->
@@ -616,6 +620,11 @@ let searchMarker = null;
 let suggestTimer = null;
 let suggestCache = [];
 
+// Arrow selection state
+let arrowFromFid = null;
+let arrowFromRing = null;
+let arrowFromOrigOpacity = 1;
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SEARCH WITH SUGGESTIONS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -684,7 +693,6 @@ function renderSuggestions(data){
       <div class="sug-detail">${esc(detail)}</div>
     </li>`;
   }).join('');
-  // Add click listeners
   suggestions.querySelectorAll('.sug-item').forEach(item=>{
     item.addEventListener('click', function(){
       const idx = parseInt(this.dataset.idx);
@@ -706,7 +714,6 @@ function selectSuggestion(place){
   showStatus(`Found: ${place.display_name.split(',')[0]}`,'ok',3000);
 }
 
-// Manual search (button or Enter with no suggestions active)
 function searchPlace(){
   const val = searchInput.value.trim();
   if(!val){ showStatus('Please type a place name','warn'); return; }
@@ -798,11 +805,13 @@ const MODES={
   boundary: {icon:'ti-shape',       label:'Draw Boundary'},
   point:    {icon:'ti-home-plus',   label:'Mark Building/Place'},
   line:     {icon:'ti-road',        label:'Draw Road / River'},
-  arrow:    {icon:'ti-arrow-move-right',label:'Numbering Arrows'}
+  arrow:    {icon:'ti-arrow-move-right',label:'Select Arrow Direction'}
 };
 function setMode(m){
   if(draggingMk){endDragMode(false);}
   if(editBndFid !== null) cancelBoundaryEdit();
+  // Clear arrow selection state if switching away from arrow mode
+  if(m !== 'arrow') clearArrowSelection();
   currentMode=m;
   tempCoords=[];
   if(tempLayer){map.removeLayer(tempLayer);tempLayer=null;}
@@ -820,10 +829,74 @@ function setMode(m){
   }
   if(m==='point') showStatus('Tap map to place feature','ok');
   else if(m==='line') showStatus('Tap points for road/river — tap last again to finish','ok');
-  else if(m==='arrow') showStatus('Tap arrow path — tap last again to finish','ok');
+  else if(m==='arrow') showStatus('Tap first building (FROM)','ok',0);
   else if(m==='boundary') showStatus('Draw boundary — tap last again to close','ok');
   else clearStatus();
   if(m==='view') document.getElementById('drag-hint').classList.remove('on');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ARROW SELECTION LOGIC (NEW)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function handleArrowSelect(fid){
+  if(currentMode !== 'arrow') return;
+  const f = features.find(x=>x.id===fid);
+  if(!f || f.geometryType !== 'point') return; // only point features accepted
+
+  if(arrowFromFid === null){
+    // First selection
+    arrowFromFid = fid;
+    highlightArrowFrom(fid);
+    showStatus('Tap second building (TO)','ok',0);
+  } else if(arrowFromFid === fid){
+    // Tapped same building again – cancel selection
+    clearArrowSelection();
+    showStatus('Selection cancelled – tap first building again','warn',2000);
+  } else {
+    // Second selection – create arrow
+    const fromF = features.find(x=>x.id===arrowFromFid);
+    const toF = f;
+    if(fromF && toF){
+      features.push({
+        id: Date.now(),
+        geometryType: 'arrow',
+        coords: [fromF.coords, toF.coords]
+      });
+      saveData();
+      renderAll();
+      showStatus('Arrow created ✓','ok',2000);
+    }
+    clearArrowSelection();
+    setMode('view'); // exit arrow mode
+  }
+}
+
+function highlightArrowFrom(fid){
+  const mk = allMarkerRefs[fid];
+  if(!mk) return;
+  arrowFromOrigOpacity = mk.options.opacity || 1;
+  mk.setOpacity(0.9);
+  const el = mk.getElement();
+  if(el){
+    const ring = document.createElement('div');
+    ring.className = 'sh-arrow-sel-ring';
+    el.style.position = 'relative';
+    el.appendChild(ring);
+    arrowFromRing = ring;
+  }
+}
+
+function clearArrowSelection(){
+  if(arrowFromFid !== null){
+    const mk = allMarkerRefs[arrowFromFid];
+    if(mk){
+      mk.setOpacity(arrowFromOrigOpacity);
+      const el = mk.getElement();
+      if(el && arrowFromRing) arrowFromRing.remove();
+    }
+  }
+  arrowFromFid = null;
+  arrowFromRing = null;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -832,11 +905,14 @@ function setMode(m){
 map.on('click',e=>{
   closeCtx();
   if(currentMode==='view') return;
+  if(currentMode==='arrow') return; // arrow mode only works via marker clicks
   if(currentMode==='point'){
     openModal('point',[e.latlng.lat,e.latlng.lng]);
     return;
   }
   if(['line','arrow','boundary'].includes(currentMode)){
+    // 'arrow' is now handled separately, but keep boundary/line drawing as before
+    if(currentMode==='arrow') return;
     if(tempCoords.length>1){
       const last=tempCoords[tempCoords.length-1];
       if(map.distance(last,e.latlng)<12){ finishPath(); return; }
@@ -1007,11 +1083,13 @@ function cancelBoundaryEdit(keepMapQuiet=false){
 const origDeleteFeature = deleteFeature;
 deleteFeature = function(fid){
   if(editBndFid === fid) cancelBoundaryEdit(true);
+  if(arrowFromFid === fid) clearArrowSelection();
   origDeleteFeature(fid);
 };
 const origUndoLast = undoLast;
 undoLast = function(){
   if(editBndFid !== null) cancelBoundaryEdit(true);
+  clearArrowSelection();
   origUndoLast();
 };
 
@@ -1136,11 +1214,13 @@ function deleteFeature(fid){
   const idx=features.findIndex(x=>x.id===fid); if(idx<0) return;
   if(draggingFid===fid) endDragMode(false);
   if(editBndFid === fid) cancelBoundaryEdit(true);
+  if(arrowFromFid === fid) clearArrowSelection();
   lastDeleted={feature:{...features[idx]},idx};
   features.splice(idx,1); saveData(); renderAll(); showUndoBar('Feature deleted');
 }
 function undoLast(){
   if(editBndFid !== null) cancelBoundaryEdit(true);
+  clearArrowSelection();
   if(!features.length) return showStatus('Nothing to undo','warn');
   const f=features.pop(); lastDeleted={feature:f}; saveData(); renderAll(); showUndoBar('Last feature removed');
 }
@@ -1195,11 +1275,13 @@ function renderAll(){
     attachPolyEvents(poly,f.id);
   });
 
-  // Arrows
+  // Arrows (now also created by select-two-buildings)
   features.filter(f=>f.geometryType==='arrow').forEach(f=>{
     const poly=L.polyline(f.coords,{color:'#ef4444',weight:2,dashArray:'5,5'}).addTo(mkLayer);
     try{
-      L.polylineDecorator(poly,{patterns:[{offset:'10%',repeat:'50px',symbol:L.Symbol.arrowHead({pixelSize:12,polygon:false,pathOptions:{stroke:true,color:'#ef4444',weight:3}})}]}).addTo(mkLayer);
+      L.polylineDecorator(poly,{
+        patterns:[{offset:'10%',repeat:'50px',symbol:L.Symbol.arrowHead({pixelSize:12,polygon:false,pathOptions:{stroke:true,color:'#ef4444',weight:3}})}]
+      }).addTo(mkLayer);
     }catch(e){}
     attachPolyEvents(poly,f.id);
   });
@@ -1237,7 +1319,7 @@ function renderAll(){
     const mk=L.marker(f.coords,{icon,draggable:false,zIndexOffset:100}).addTo(mkLayer);
     allMarkerRefs[f.id]=mk;
 
-    // Permanent label for every point
+    // Permanent label
     let labelText = '';
     if(f.name) labelText = f.name;
     if(f.censusCount && f.censusCount>1) labelText = labelText ? labelText+` (${f.censusCount})` : `(${f.censusCount})`;
@@ -1255,14 +1337,24 @@ function renderAll(){
     }
     mk.bindTooltip(labelText,{permanent:true,direction:'right',className:'map-label',offset:[12,0]});
 
+    // Modified click handler: if arrow mode, intercept selection
     mk.on('click',function(e){
       L.DomEvent.stopPropagation(e);
+      if(currentMode==='arrow'){
+        handleArrowSelect(f.id);
+        return;
+      }
       if(draggingFid===f.id){ showDragConfirmPopup(mk,f.id); return; }
       openCtxFor(f.id,e.originalEvent);
     });
-    mk.on('contextmenu',function(e){ L.DomEvent.stopPropagation(e); openCtxFor(f.id,e.originalEvent); });
+    mk.on('contextmenu',function(e){
+      L.DomEvent.stopPropagation(e);
+      if(currentMode==='arrow') return; // no context menu while arrow mode
+      openCtxFor(f.id,e.originalEvent);
+    });
     let mkLp=null;
     mk.on('mousedown touchstart',function(ev){
+      if(currentMode==='arrow') return; // disable long press in arrow mode
       mkLp=setTimeout(()=>{ openCtxFor(f.id,ev.originalEvent?.touches?.[0]||ev.originalEvent||ev); },600);
     });
     mk.on('mouseup touchend mousemove touchmove',()=>clearTimeout(mkLp));
@@ -1273,8 +1365,16 @@ function renderAll(){
   document.getElementById('cnt-bndy').textContent=bndy;
 }
 function attachPolyEvents(poly,fid){
-  poly.on('click',function(e){ L.DomEvent.stopPropagation(e); openCtxFor(fid,e.originalEvent); });
-  poly.on('contextmenu',function(e){ L.DomEvent.stopPropagation(e); openCtxFor(fid,e.originalEvent); });
+  poly.on('click',function(e){
+    L.DomEvent.stopPropagation(e);
+    if(currentMode==='arrow') return;
+    openCtxFor(fid,e.originalEvent);
+  });
+  poly.on('contextmenu',function(e){
+    L.DomEvent.stopPropagation(e);
+    if(currentMode==='arrow') return;
+    openCtxFor(fid,e.originalEvent);
+  });
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1422,14 +1522,20 @@ document.addEventListener('keydown',e=>{
   if(k==='b')setMode('boundary');
   if(k==='a')setMode('arrow');
   if(k==='z')undoLast();
-  if(k==='escape'){ closeCtx();closeModal();if(draggingMk)endDragMode(false);if(editBndFid!==null)cancelBoundaryEdit();setMode('view'); }
+  if(k==='escape'){
+    closeCtx();closeModal();
+    if(draggingMk)endDragMode(false);
+    if(editBndFid!==null)cancelBoundaryEdit();
+    clearArrowSelection();
+    setMode('view');
+  }
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // INIT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 renderAll();
-showStatus('Type a place to search — suggestions appear as you type','ok',6000);
+showStatus('Arrow mode: tap two buildings to draw a survey arrow','ok',5000);
 </script>
 </body>
 </html>
