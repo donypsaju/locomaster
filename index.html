@@ -98,6 +98,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 }
 #drag-hint.on{display:flex}
 
+/* Boundary edit bar */
+#bnd-edit-bar{
+  position:absolute;bottom:calc(var(--tbh)+8px);left:50%;transform:translateX(-50%);
+  background:var(--card);border:1px solid #f59e0b55;border-radius:10px;
+  padding:6px 14px;z-index:500;font-size:10px;color:var(--amber);
+  display:none;align-items:center;gap:10px;white-space:nowrap;
+}
+#bnd-edit-bar.on{display:flex}
+.bebtn{background:var(--accent);border:none;color:#fff;border-radius:7px;padding:5px 10px;font-size:10px;cursor:pointer;font-family:var(--font)}
+.bebtn.danger{background:var(--red)}
+
 /* ── EDIT POPUP ── */
 .edit-popup{font-size:11px}
 .edit-popup b{font-size:12px;display:block;margin-bottom:6px}
@@ -313,6 +324,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   <span>Drag marker to exact position, then tap it for options</span>
 </div>
 
+<!-- ═══ BOUNDARY EDIT BAR ═══ -->
+<div id="bnd-edit-bar">
+  <span>✏️ Edit boundary</span>
+  <button class="bebtn" onclick="saveBoundaryEdit()">Save</button>
+  <button class="bebtn danger" onclick="cancelBoundaryEdit()">Cancel</button>
+</div>
+
 <!-- ═══ IMAGE OVERLAY CONTROLS ═══ -->
 <div id="geocontrols">
   <h4><i class="ti ti-photo" style="color:var(--accent)"></i>Align Map Photo</h4>
@@ -338,6 +356,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 <div id="ctx">
   <div class="ci" id="ctx-edit" onclick="ctxEdit()"><i class="ti ti-pencil"></i>Edit details</div>
   <div class="ci" id="ctx-drag" onclick="ctxStartDrag()"><i class="ti ti-arrows-move"></i>Move / reposition</div>
+  <div class="ci" id="ctx-shape" onclick="ctxEditShape()" style="display:none"><i class="ti ti-shape"></i>Edit shape</div>
   <div class="ci" id="ctx-snap" onclick="ctxSnapGPS()"><i class="ti ti-current-location"></i>Snap to my GPS</div>
   <div class="csep"></div>
   <div class="ci d" id="ctx-del" onclick="ctxDelete()"><i class="ti ti-trash" style="color:var(--red)"></i>Delete</div>
@@ -507,7 +526,6 @@ const map = L.map('map',{
 
 L.control.zoom({position:'topright'}).addTo(map);
 
-// FIX: added maxNativeZoom to prevent "Map data not yet available"
 const TILES = {
   osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
     attribution:'© OSM', maxZoom:22, maxNativeZoom:19
@@ -557,6 +575,11 @@ let baseLatSpan = 0.005, baseLngSpan=0.005, imgAngle=0;
 // GPS drag pause
 let gpsPausedByDrag = false;
 
+// Boundary edit state
+let editBndFid    = null;
+let editBndCoords = null;  // working copy
+let editBndMkGrp  = null;  // featureGroup for vertex markers + line
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // GPS (with drag-pause logic)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -569,7 +592,7 @@ function startGPS(){
   dot.className='search'; lbl.textContent='Searching…';
   document.getElementById('tb-gps').classList.add('on-g');
   gpsOn=true;
-  gpsPausedByDrag = false; // reset drag pause when GPS is turned on
+  gpsPausedByDrag = false;
 
   watchId=navigator.geolocation.watchPosition(p=>{
     const{latitude:lat,longitude:lng,accuracy:acc}=p.coords;
@@ -595,7 +618,6 @@ function startGPS(){
       });
       map.setView(ll,18);
     } else if (!gpsPausedByDrag) {
-      // Only update if user hasn't dragged the marker
       youMk.setLatLng(ll);
     }
     if(youCircle) map.removeLayer(youCircle);
@@ -637,6 +659,8 @@ const MODES={
 };
 function setMode(m){
   if(draggingMk){endDragMode(false);}
+  // Exit boundary edit if active
+  if(editBndFid !== null) cancelBoundaryEdit();
   currentMode=m;
   tempCoords=[];
   if(tempLayer){map.removeLayer(tempLayer);tempLayer=null;}
@@ -702,7 +726,7 @@ function finishPath(){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// DRAGGABLE MARKER SYSTEM (unchanged)
+// DRAGGABLE MARKER SYSTEM
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function enterDragMode(fid){
   if(draggingMk) endDragMode(false);
@@ -752,14 +776,127 @@ function snapToGPS(fid){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// BOUNDARY EDITING
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function ctxEditShape(){
+  closeCtx();
+  if(ctxFid == null) return;
+  const f = features.find(x=>x.id===ctxFid);
+  if(!f || f.geometryType!=='boundary') return;
+  enterBoundaryEdit(ctxFid);
+}
+
+function enterBoundaryEdit(fid){
+  if(editBndFid !== null) cancelBoundaryEdit();
+  const f = features.find(x=>x.id===fid);
+  if(!f) return;
+  editBndFid = fid;
+  editBndCoords = f.coords.map(c=>[...c]); // deep copy
+  document.getElementById('bnd-edit-bar').classList.add('on');
+
+  // Create editable layer
+  editBndMkGrp = L.featureGroup().addTo(map);
+
+  // Add vertex markers (draggable)
+  editBndCoords.forEach((coord,idx)=>{
+    const marker = L.circleMarker(coord, {radius:5, color:'#fff', fillColor:'#f59e0b', fillOpacity:1, weight:2, draggable:true})
+      .addTo(editBndMkGrp);
+    marker.on('drag', function(e){
+      const pos = e.target.getLatLng();
+      editBndCoords[idx] = [pos.lat, pos.lng];
+      redrawBoundaryEditLine();
+    });
+  });
+
+  // Polygon outline (dashed)
+  redrawBoundaryEditLine();
+
+  // Add map click listener to append new points after the last
+  map.on('click', onBoundaryEditClick);
+  showStatus('Tap map to add new vertices (after last), drag to move', 'ok', 0);
+  setMode('view');
+}
+
+function onBoundaryEditClick(e){
+  if(editBndFid === null) return;
+  // Add new point at the end
+  const ll = [e.latlng.lat, e.latlng.lng];
+  editBndCoords.push(ll);
+
+  // Create marker for the new point
+  const marker = L.circleMarker(ll, {radius:5, color:'#fff', fillColor:'#f59e0b', fillOpacity:1, weight:2, draggable:true})
+    .addTo(editBndMkGrp);
+  const idx = editBndCoords.length - 1;
+  marker.on('drag', function(e){
+    const pos = e.target.getLatLng();
+    editBndCoords[idx] = [pos.lat, pos.lng];
+    redrawBoundaryEditLine();
+  });
+  redrawBoundaryEditLine();
+  showStatus(`Point added (${editBndCoords.length} total)`, 'ok', 1000);
+}
+
+function redrawBoundaryEditLine(){
+  // Remove old line from group
+  editBndMkGrp.eachLayer(layer=>{
+    if(layer instanceof L.Polyline) editBndMkGrp.removeLayer(layer);
+  });
+  if(editBndCoords.length > 1){
+    L.polyline(editBndCoords, {color:'#fff', dashArray:'8,8', weight:2}).addTo(editBndMkGrp);
+  }
+}
+
+function saveBoundaryEdit(){
+  if(editBndFid === null) return;
+  const f = features.find(x=>x.id===editBndFid);
+  if(f && editBndCoords.length > 2){
+    f.coords = [...editBndCoords];
+    saveData();
+    showStatus('Boundary updated ✓','ok',2000);
+  } else {
+    showStatus('Need at least 3 points for a polygon','warn');
+    return;
+  }
+  cancelBoundaryEdit(true);
+  renderAll();
+}
+
+function cancelBoundaryEdit(keepMapQuiet=false){
+  if(editBndFid !== null){
+    map.off('click', onBoundaryEditClick);
+    if(editBndMkGrp) map.removeLayer(editBndMkGrp);
+    editBndFid = null;
+    editBndCoords = null;
+    editBndMkGrp = null;
+    document.getElementById('bnd-edit-bar').classList.remove('on');
+    if(!keepMapQuiet) showStatus('Boundary edit cancelled', 'warn', 2000);
+  }
+}
+
+// Also cancel editing when undo/delete boundary happens
+const origDeleteFeature = deleteFeature;
+deleteFeature = function(fid){
+  if(editBndFid === fid) cancelBoundaryEdit(true);
+  origDeleteFeature(fid);
+};
+
+const origUndoLast = undoLast;
+undoLast = function(){
+  if(editBndFid !== null) cancelBoundaryEdit(true);
+  origUndoLast();
+};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONTEXT MENU
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function openCtxFor(fid,e){
   ctxFid=fid;
   const f=features.find(x=>x.id===fid);
   const isPoint=f&&f.geometryType==='point';
+  const isBoundary = f && f.geometryType==='boundary';
   document.getElementById('ctx-drag').style.display=isPoint?'flex':'none';
   document.getElementById('ctx-snap').style.display=isPoint?'flex':'none';
+  document.getElementById('ctx-shape').style.display=isBoundary?'flex':'none';
   document.getElementById('ctx-edit').style.display='flex';
   const mc=map.getContainer().getBoundingClientRect();
   const x=Math.min((e.clientX||e.pageX)-mc.left, mc.width-185);
@@ -859,16 +996,23 @@ function savePathFeature(gtype,coords){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function editFeature(fid){
   const f=features.find(x=>x.id===fid); if(!f) return;
+  // Boundaries don't have a modal yet; later we could add a simple form
+  if(f.geometryType==='boundary'){
+    showStatus('Boundary properties coming soon. Use "Edit shape" to adjust vertices.','ok',3000);
+    return;
+  }
   const type=f.geometryType==='point'?'point':'line';
   openModal(type,f.coords,f);
 }
 function deleteFeature(fid){
   const idx=features.findIndex(x=>x.id===fid); if(idx<0) return;
   if(draggingFid===fid) endDragMode(false);
+  if(editBndFid === fid) cancelBoundaryEdit(true);
   lastDeleted={feature:{...features[idx]},idx};
   features.splice(idx,1); saveData(); renderAll(); showUndoBar('Feature deleted');
 }
 function undoLast(){
+  if(editBndFid !== null) cancelBoundaryEdit(true);
   if(!features.length) return showStatus('Nothing to undo','warn');
   const f=features.pop(); lastDeleted={feature:f}; saveData(); renderAll(); showUndoBar('Last feature removed');
 }
@@ -1011,7 +1155,7 @@ function printMap(){
   document.body.classList.remove('printing');
 }
 const printStyle=document.createElement('style');
-printStyle.textContent=`@media print{body.printing #header,body.printing #toolbar,body.printing #status,body.printing #drag-hint,body.printing #ctx,body.printing #undo-bar,body.printing #moverlay,body.printing #geocontrols,body.printing #maptype{display:none!important}#map{position:absolute;top:0;left:0;bottom:0;right:0}}`;
+printStyle.textContent=`@media print{body.printing #header,body.printing #toolbar,body.printing #status,body.printing #drag-hint,body.printing #ctx,body.printing #undo-bar,body.printing #moverlay,body.printing #geocontrols,body.printing #maptype,body.printing #bnd-edit-bar{display:none!important}#map{position:absolute;top:0;left:0;bottom:0;right:0}}`;
 document.head.appendChild(printStyle);
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1136,14 +1280,14 @@ document.addEventListener('keydown',e=>{
   if(k==='b')setMode('boundary');
   if(k==='a')setMode('arrow');
   if(k==='z')undoLast();
-  if(k==='escape'){ closeCtx();closeModal();if(draggingMk)endDragMode(false);setMode('view'); }
+  if(k==='escape'){ closeCtx();closeModal();if(draggingMk)endDragMode(false);if(editBndFid!==null)cancelBoundaryEdit();setMode('view'); }
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // INIT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 renderAll();
-showStatus('GPS → drag to fine‑tune → Mark Building / Road / Institution','ok',6000);
+showStatus('GPS → drag to fine‑tune → Mark Building / Road / Boundary','ok',6000);
 </script>
 </body>
 </html>
