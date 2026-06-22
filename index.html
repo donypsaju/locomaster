@@ -547,8 +547,11 @@ let allMarkerRefs = {};
 let refOverlay  = null, refMarkerCenter=null;
 let baseLatSpan = 0.005, baseLngSpan=0.005, imgAngle=0;
 
+// GPS drag pause
+let gpsPausedByDrag = false;
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// GPS
+// GPS (with drag-pause logic)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 let gpsOn=false;
 function toggleGPS(){ gpsOn?stopGPS():startGPS(); }
@@ -559,6 +562,7 @@ function startGPS(){
   dot.className='search'; lbl.textContent='Searching…';
   document.getElementById('tb-gps').classList.add('on-g');
   gpsOn=true;
+  gpsPausedByDrag = false; // reset drag pause when GPS is turned on
 
   watchId=navigator.geolocation.watchPosition(p=>{
     const{latitude:lat,longitude:lng,accuracy:acc}=p.coords;
@@ -571,15 +575,23 @@ function startGPS(){
         draggable:true,
         zIndexOffset:2000
       }).addTo(map).bindPopup('<b style="font-size:12px">📍 You are here</b>');
+      youMk.on('dragstart',function(){
+        gpsPausedByDrag = true;
+        showStatus('GPS location frozen – tap GPS pill to resume tracking','warn',3000);
+      });
       youMk.on('dragend',function(e){
         const pos=e.target.getLatLng();
+        // Update the circle to the new position (keep it consistent)
         if(youCircle){
           map.removeLayer(youCircle);
           youCircle=L.circle([pos.lat,pos.lng],{radius:acc,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:.08,weight:1,dashArray:'4,4'}).addTo(map);
         }
       });
       map.setView(ll,18);
-    } else { youMk.setLatLng(ll); }
+    } else if (!gpsPausedByDrag) {
+      // Only update if user hasn't dragged the marker
+      youMk.setLatLng(ll);
+    }
     if(youCircle) map.removeLayer(youCircle);
     youCircle=L.circle(ll,{radius:acc,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:.08,weight:1,dashArray:'4,4'}).addTo(map);
     if(acc>30) showStatus('Weak GPS: ±'+Math.round(acc)+'m — move outdoors','warn');
@@ -596,7 +608,9 @@ function stopGPS(){
   document.getElementById('gdot').className='';
   document.getElementById('glbl').textContent='GPS off';
   document.getElementById('tb-gps').classList.remove('on-g');
-  gpsOn=false; clearStatus();
+  gpsOn=false;
+  gpsPausedByDrag = false;
+  clearStatus();
 }
 function gpsErrMsg(err){
   if(err.code===1) return 'Location denied — enable in browser settings';
@@ -919,7 +933,6 @@ function renderAll(){
       if(f.type==='pucca-house') html=`<div class="census-wrap"><div class="sh-pucca${isNR?' nr':''}"></div></div>`;
       else html=`<div class="census-wrap"><div class="sh-kutcha${isNR?' nr':''}"></div></div>`;
     } else {
-      // Institution / special feature — colored circle with letter
       const mapping = {
         'temple':            {letter:'T', color:'#f97316'},
         'mosque':            {letter:'M', color:'#10b981'},
@@ -1124,7 +1137,7 @@ document.addEventListener('keydown',e=>{
 // INIT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 renderAll();
-showStatus('GPS → fine‑tune → Mark Building / Road / Institution','ok',6000);
+showStatus('GPS → drag to fine‑tune → Mark Building / Road / Institution','ok',6000);
 </script>
 </body>
 </html>
