@@ -110,6 +110,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 }
 .mt.active{background:var(--glow);border-color:var(--accent);color:var(--accent)}
 
+/* Compass reset button */
+.leaflet-control-compass{
+  background:var(--card)!important;border:1px solid var(--border2)!important;border-radius:6px!important;
+  width:32px!important;height:32px!important;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:.15s;font-size:18px;color:var(--text2);margin-top:4px;box-shadow:0 1px 5px rgba(0,0,0,.4);
+}
+.leaflet-control-compass:hover{background:var(--card2)!important;color:var(--accent)}
+
 /* ── STATUS TOAST ── */
 #status{
   position:absolute;top:calc(var(--hh)+8px);left:50%;transform:translateX(-50%);
@@ -213,7 +221,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   position:absolute;inset:-6px;border-radius:50%;
   border:2px dashed var(--amber);animation:rotatering 2s linear infinite;
 }
-/* Arrow select ring */
 .sh-arrow-sel-ring{
   position:absolute;inset:-5px;border-radius:50%;
   border:2px solid var(--amber);box-shadow:0 0 8px var(--amber);
@@ -556,10 +563,36 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const map = L.map('map',{
   zoomControl:false, maxZoom:22, preferCanvas:false,
-  tapTolerance:15, bounceAtZoomLimits:false
+  tapTolerance:15, bounceAtZoomLimits:false,
+  touchZoom: true, // keep true; we'll handle rotation separately
 }).setView([10.5,76.2],16);
 
 L.control.zoom({position:'topright'}).addTo(map);
+
+// ── Compass control (reset bearing) ──
+const CompassControl = L.Control.extend({
+  options: { position: 'topright' },
+  onAdd: function (map) {
+    const container = L.DomUtil.create('div', 'leaflet-control-compass');
+    container.innerHTML = '<i class="ti ti-arrow-north" style="font-size:16px"></i>';
+    container.title = 'Reset north (double-tap)';
+    L.DomEvent.on(container, 'click', function(e){
+      L.DomEvent.stopPropagation(e);
+      L.DomEvent.preventDefault(e);
+      map.setBearing(0);
+      updateCompassVisibility();
+    });
+    return container;
+  }
+});
+new CompassControl().addTo(map);
+
+function updateCompassVisibility(){
+  const compass = document.querySelector('.leaflet-control-compass');
+  if (compass) compass.style.display = map.getBearing() !== 0 ? 'flex' : 'none';
+}
+updateCompassVisibility();
+map.on('rotate', updateCompassVisibility);
 
 const TILES = {
   osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
@@ -584,6 +617,64 @@ function switchMapType(type){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TWO‑FINGER ROTATION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+(function(){
+  const container = map.getContainer();
+  let initialAngle = 0;
+  let initialBearing = 0;
+  let initialDistance = 0;
+  let isRotating = false;
+
+  function getAngle(t1, t2){
+    return Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX);
+  }
+
+  function getDistance(t1, t2){
+    const dx = t2.clientX - t1.clientX;
+    const dy = t2.clientY - t1.clientY;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+
+  container.addEventListener('touchstart', function(e){
+    if (e.touches.length === 2){
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      initialAngle = getAngle(t1, t2);
+      initialBearing = map.getBearing();
+      initialDistance = getDistance(t1, t2);
+      isRotating = true;
+    } else {
+      isRotating = false;
+    }
+  }, {passive: false});
+
+  container.addEventListener('touchmove', function(e){
+    if (!isRotating || e.touches.length !== 2) return;
+    const t1 = e.touches[0];
+    const t2 = e.touches[1];
+    const currentAngle = getAngle(t1, t2);
+    const currentDistance = getDistance(t1, t2);
+
+    // Determine if user intends rotation vs pinch zoom
+    const angleDelta = currentAngle - initialAngle;
+    const distChangeRatio = Math.abs(currentDistance - initialDistance) / initialDistance;
+
+    // If angle change is significant and distance change is small → rotation
+    if (Math.abs(angleDelta) > 0.05 && distChangeRatio < 0.15){
+      e.preventDefault(); // prevent default pinch zoom when rotating
+      const bearingDelta = angleDelta * (180 / Math.PI);
+      map.setBearing(initialBearing + bearingDelta);
+    }
+    // else: let the map handle pinch zoom normally (default behaviour)
+  }, {passive: false});
+
+  container.addEventListener('touchend', function(){
+    isRotating = false;
+  });
+})();
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // STATE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 let features   = JSON.parse(localStorage.getItem('census-v3')||'[]');
@@ -598,35 +689,29 @@ let ctxFid     = null;
 let lastDeleted= null;
 let undoTimer  = null;
 
-// Drag state
 let draggingMk    = null;
 let draggingFid   = null;
 let allMarkerRefs = {};
 
-// Image overlay
 let refOverlay  = null, refMarkerCenter=null;
 let baseLatSpan = 0.005, baseLngSpan=0.005, imgAngle=0;
 
-// GPS drag pause
 let gpsPausedByDrag = false;
 
-// Boundary edit state
 let editBndFid    = null;
 let editBndCoords = null;
 let editBndMkGrp  = null;
 
-// Search
 let searchMarker = null;
 let suggestTimer = null;
 let suggestCache = [];
 
-// Arrow selection state
 let arrowFromFid = null;
 let arrowFromRing = null;
 let arrowFromOrigOpacity = 1;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SEARCH WITH SUGGESTIONS
+// SEARCH WITH SUGGESTIONS (same as before)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const searchInput = document.getElementById('search-input');
 const suggestions = document.getElementById('suggestions');
@@ -731,7 +816,7 @@ function searchPlace(){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// GPS
+// GPS (same as before)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 let gpsOn=false;
 function toggleGPS(){ gpsOn?stopGPS():startGPS(); }
@@ -798,7 +883,7 @@ function gpsErrMsg(err){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MODE MANAGEMENT
+// MODE MANAGEMENT (with arrow enhancement)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const MODES={
   view:     {icon:'ti-hand-stop',   label:'Pan'},
@@ -810,7 +895,6 @@ const MODES={
 function setMode(m){
   if(draggingMk){endDragMode(false);}
   if(editBndFid !== null) cancelBoundaryEdit();
-  // Clear arrow selection state if switching away from arrow mode
   if(m !== 'arrow') clearArrowSelection();
   currentMode=m;
   tempCoords=[];
@@ -836,24 +920,21 @@ function setMode(m){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ARROW SELECTION LOGIC (NEW)
+// ARROW SELECTION LOGIC
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function handleArrowSelect(fid){
   if(currentMode !== 'arrow') return;
   const f = features.find(x=>x.id===fid);
-  if(!f || f.geometryType !== 'point') return; // only point features accepted
+  if(!f || f.geometryType !== 'point') return;
 
   if(arrowFromFid === null){
-    // First selection
     arrowFromFid = fid;
     highlightArrowFrom(fid);
     showStatus('Tap second building (TO)','ok',0);
   } else if(arrowFromFid === fid){
-    // Tapped same building again – cancel selection
     clearArrowSelection();
     showStatus('Selection cancelled – tap first building again','warn',2000);
   } else {
-    // Second selection – create arrow
     const fromF = features.find(x=>x.id===arrowFromFid);
     const toF = f;
     if(fromF && toF){
@@ -867,7 +948,7 @@ function handleArrowSelect(fid){
       showStatus('Arrow created ✓','ok',2000);
     }
     clearArrowSelection();
-    setMode('view'); // exit arrow mode
+    setMode('view');
   }
 }
 
@@ -905,13 +986,12 @@ function clearArrowSelection(){
 map.on('click',e=>{
   closeCtx();
   if(currentMode==='view') return;
-  if(currentMode==='arrow') return; // arrow mode only works via marker clicks
+  if(currentMode==='arrow') return;
   if(currentMode==='point'){
     openModal('point',[e.latlng.lat,e.latlng.lng]);
     return;
   }
   if(['line','arrow','boundary'].includes(currentMode)){
-    // 'arrow' is now handled separately, but keep boundary/line drawing as before
     if(currentMode==='arrow') return;
     if(tempCoords.length>1){
       const last=tempCoords[tempCoords.length-1];
@@ -944,7 +1024,7 @@ function finishPath(){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// DRAGGABLE MARKER SYSTEM
+// DRAGGABLE MARKER SYSTEM (same as before)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function enterDragMode(fid){
   if(draggingMk) endDragMode(false);
@@ -1124,7 +1204,7 @@ map.getContainer().addEventListener('touchmove',()=>clearTimeout(lpTimer),{passi
 map.on('click',closeCtx);
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MODAL — EXTENDED WITH ALL FEATURE TYPES
+// MODAL — same as before
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function onFeatureTypeChange(){
   const type = document.getElementById('pt-type').value;
@@ -1241,14 +1321,13 @@ function dismissUndo(){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// RENDER — MAX LABELS + ENHANCED LABELS
+// RENDER — including arrow lines
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function renderAll(){
   mkLayer.clearLayers();
   allMarkerRefs={};
   let bldg=0,road=0,bndy=0;
 
-  // Boundaries
   features.filter(f=>f.geometryType==='boundary').forEach(f=>{
     const poly = L.polygon(f.coords,{color:'#fff',weight:3,fillOpacity:.05,dashArray:'10,8'}).addTo(mkLayer);
     bndy++;
@@ -1259,7 +1338,6 @@ function renderAll(){
       .addTo(mkLayer);
   });
 
-  // Lines
   features.filter(f=>f.geometryType==='line').forEach(f=>{
     let style = {weight:4,color:'#fff'};
     if(f.type==='bad-road') style.dashArray='8,6';
@@ -1275,7 +1353,6 @@ function renderAll(){
     attachPolyEvents(poly,f.id);
   });
 
-  // Arrows (now also created by select-two-buildings)
   features.filter(f=>f.geometryType==='arrow').forEach(f=>{
     const poly=L.polyline(f.coords,{color:'#ef4444',weight:2,dashArray:'5,5'}).addTo(mkLayer);
     try{
@@ -1286,7 +1363,6 @@ function renderAll(){
     attachPolyEvents(poly,f.id);
   });
 
-  // Points
   features.filter(f=>f.geometryType==='point').forEach(f=>{
     bldg++;
     let html='';
@@ -1319,7 +1395,6 @@ function renderAll(){
     const mk=L.marker(f.coords,{icon,draggable:false,zIndexOffset:100}).addTo(mkLayer);
     allMarkerRefs[f.id]=mk;
 
-    // Permanent label
     let labelText = '';
     if(f.name) labelText = f.name;
     if(f.censusCount && f.censusCount>1) labelText = labelText ? labelText+` (${f.censusCount})` : `(${f.censusCount})`;
@@ -1337,7 +1412,6 @@ function renderAll(){
     }
     mk.bindTooltip(labelText,{permanent:true,direction:'right',className:'map-label',offset:[12,0]});
 
-    // Modified click handler: if arrow mode, intercept selection
     mk.on('click',function(e){
       L.DomEvent.stopPropagation(e);
       if(currentMode==='arrow'){
@@ -1349,12 +1423,12 @@ function renderAll(){
     });
     mk.on('contextmenu',function(e){
       L.DomEvent.stopPropagation(e);
-      if(currentMode==='arrow') return; // no context menu while arrow mode
+      if(currentMode==='arrow') return;
       openCtxFor(f.id,e.originalEvent);
     });
     let mkLp=null;
     mk.on('mousedown touchstart',function(ev){
-      if(currentMode==='arrow') return; // disable long press in arrow mode
+      if(currentMode==='arrow') return;
       mkLp=setTimeout(()=>{ openCtxFor(f.id,ev.originalEvent?.touches?.[0]||ev.originalEvent||ev); },600);
     });
     mk.on('mouseup touchend mousemove touchmove',()=>clearTimeout(mkLp));
@@ -1535,7 +1609,7 @@ document.addEventListener('keydown',e=>{
 // INIT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 renderAll();
-showStatus('Arrow mode: tap two buildings to draw a survey arrow','ok',5000);
+showStatus('Map rotatable with two fingers – tap compass to reset north','ok',5000);
 </script>
 </body>
 </html>
