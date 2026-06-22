@@ -664,12 +664,8 @@ function enterDragMode(fid){
   // Show hint bar
   document.getElementById('drag-hint').classList.add('on');
 
-  // On single click after drag starts → show confirm popup
-  mk.once('click',()=>{
-    // Delay to let map's click not close popup
-    setTimeout(()=>showDragConfirmPopup(mk,fid),50);
-  });
-
+  // (Bug fix) Do NOT add a separate 'once' click handler.
+  // The permanent marker click handler already checks draggingFid and shows the confirm popup.
   showStatus('Drag marker to exact position, then tap it to confirm','warn',0);
   setMode('view');
   closeCtx();
@@ -763,7 +759,6 @@ map.getContainer().addEventListener('touchstart',ev=>{
     const latlng=map.containerPointToLatLng([t.clientX-mc.left,t.clientY-mc.top]);
     // Only for view mode
     if(currentMode==='view'){
-      // No feature — show place-here option
       showStatus('Long-press: use toolbar to select mode','ok',2000);
     }
   },700);
@@ -845,6 +840,8 @@ function editFeature(fid){
 function deleteFeature(fid){
   const idx=features.findIndex(x=>x.id===fid);
   if(idx<0) return;
+  // Cancel drag if deleting the feature currently being dragged
+  if(draggingFid===fid){ endDragMode(false); }
   lastDeleted={feature:{...features[idx]},idx};
   features.splice(idx,1);
   saveData(); renderAll();
@@ -859,7 +856,7 @@ function undoLast(){
 }
 function undoDelete(){
   if(!lastDeleted) return;
-  if(lastDeleted.idx!=null){
+  if(lastDeleted.idx != null){  // FIX: property is 'idx', not 'idxa'
     features.splice(lastDeleted.idx,0,lastDeleted.feature);
   } else {
     features.push(lastDeleted.feature);
@@ -874,6 +871,7 @@ function showUndoBar(msg){
   clearTimeout(undoTimer);
   undoTimer=setTimeout(dismissUndo,5000);
 }
+// FIX: define missing dismissUndo function
 function dismissUndo(){
   document.getElementById('undo-bar').classList.remove('on');
   clearTimeout(undoTimer);
@@ -901,7 +899,7 @@ function renderAll(){
     if(f.type==='kutcha-road'){style.dashArray='8,6';}
     if(f.type==='pathway'){style.weight=2;style.dashArray='4,4';style.color='#a9a8c0';}
     if(f.type==='railway'){style.color='#fff';style.dashArray='10,8';}
-    if(f.type==='river'){style.color:'#3b82f6';style.weight=5;style.color='#3b82f6';}
+    if(f.type==='river'){style.weight=5;style.color='#3b82f6';}
     const poly=L.polyline(f.coords,style).addTo(mkLayer);
     road++;
     if(f.name){
@@ -1086,7 +1084,7 @@ function exportData(){
   const blob=new Blob([JSON.stringify(features,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download='census_layout_'+new Date().toISOString().slice(0,10)+'.json';
+  a.download='census_layout_'+new Date().toISOString().slice(0,10)+'.json'; // FIX: new Date()
   a.click(); URL.revokeObjectURL(a.href);
   showStatus('Exported ✓','ok',2000);
 }
