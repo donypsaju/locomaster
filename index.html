@@ -49,14 +49,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 .lbadge{background:var(--glow);border:1px solid var(--accent);color:var(--accent);font-size:9px;padding:1px 6px;border-radius:20px}
 #hsp{flex:1}
 
-/* Search box */
+/* Search box with dropdown */
+#search-wrapper{position:relative;margin-right:8px}
 #searchbox{
   display:flex;align-items:center;background:var(--card);border:1px solid var(--border2);
-  border-radius:20px;overflow:hidden;margin-right:8px;
+  border-radius:20px;overflow:hidden;
 }
 #searchbox input{
   background:transparent;border:none;outline:none;color:var(--text);font-size:11px;
-  padding:5px 8px;width:110px;font-family:var(--font);
+  padding:5px 8px;width:120px;font-family:var(--font);
 }
 #searchbox input::placeholder{color:var(--text3)}
 #searchbox button{
@@ -64,6 +65,23 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   display:flex;align-items:center;justify-content:center;
 }
 #searchbox button:hover{color:var(--accent)}
+
+/* Suggestions dropdown */
+#suggestions{
+  position:absolute;top:100%;left:0;right:0;margin-top:4px;
+  background:var(--card2);border:1px solid var(--border2);border-radius:10px;
+  list-style:none;overflow:hidden;z-index:800;display:none;
+  max-height:220px;overflow-y:auto;box-shadow:0 8px 20px rgba(0,0,0,.6);
+}
+#suggestions.on{display:block}
+.sug-item{
+  padding:8px 12px;font-size:10px;color:var(--text2);cursor:pointer;
+  border-bottom:1px solid var(--border);transition:background .1s;
+}
+.sug-item:hover,.sug-item.active{background:var(--card);color:var(--text)}
+.sug-item:last-child{border-bottom:none}
+.sug-name{font-weight:600;color:var(--text);font-size:11px}
+.sug-detail{font-size:9px;color:var(--text3);margin-top:2px}
 
 /* GPS pill */
 #gpspill{display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border2);border-radius:20px;padding:4px 10px;font-size:10px;color:var(--text3);white-space:nowrap;cursor:pointer;transition:.2s}
@@ -172,8 +190,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 
 /* ── CENSUS SHAPES ── */
 .census-wrap{display:flex;align-items:center;justify-content:center;position:relative}
-
-/* Houses */
 .sh-pucca{width:16px;height:16px;border:2.5px solid #fff;background:#fff}
 .sh-pucca.nr{background:#777;border-color:#ccc}
 .sh-kutcha{
@@ -187,21 +203,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 }
 .sh-kutcha.nr::after{border-bottom-color:#777}
 .sh-kutcha.nr{border-bottom-color:#ccc}
-
-/* Institution / other features */
 .sh-inst{width:18px;height:18px;border-radius:50%;background:var(--amber);border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff}
-
-/* Water source */
 .sh-water{width:18px;height:18px;border-radius:50%;background:var(--cyan);border:2.5px solid #fff;}
-
-/* GPS dot */
 .gps-pulse{
   width:14px;height:14px;background:var(--accent);border:2px solid #fff;
   border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,.3),0 0 12px rgba(59,130,246,.6);
   animation:gpspulse 2s infinite;
 }
-
-/* Dragging ring */
 .sh-drag-ring{
   position:absolute;inset:-6px;border-radius:50%;
   border:2px dashed var(--amber);animation:rotatering 2s linear infinite;
@@ -223,7 +231,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 .gbtn{flex:1;padding:9px;border-radius:9px;border:1px solid var(--border2);background:var(--card2);color:var(--text);font-size:11px;cursor:pointer;font-family:var(--font);transition:.1s}
 .gbtn:active{opacity:.7}
 .gbtn.pr{background:var(--accent);border-color:var(--accent2);color:#fff}
-
 .overlay-drag{
   background:var(--accent);color:#fff;border-radius:50%;border:2px solid rgba(255,255,255,.4);
   display:flex;align-items:center;justify-content:center;font-size:18px;
@@ -318,9 +325,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
     <span class="lbadge">Field</span>
   </div>
   <div id="hsp"></div>
-  <div id="searchbox">
-    <input type="text" id="search-input" placeholder="Search place…" autocomplete="off"/>
-    <button onclick="searchPlace()"><i class="ti ti-search"></i></button>
+  <div id="search-wrapper">
+    <div id="searchbox">
+      <input type="text" id="search-input" placeholder="Search place…" autocomplete="off"/>
+      <button onclick="searchPlace()"><i class="ti ti-search"></i></button>
+    </div>
+    <ul id="suggestions"></ul>
   </div>
   <div id="modebadge"><i class="ti ti-hand-stop" id="modeicon"></i><span id="modetxt">Pan</span></div>
   <div id="gpspill" onclick="toggleGPS()">
@@ -601,46 +611,120 @@ let editBndFid    = null;
 let editBndCoords = null;
 let editBndMkGrp  = null;
 
-// Search result marker
+// Search
 let searchMarker = null;
+let suggestTimer = null;
+let suggestCache = [];
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SEARCH FUNCTIONALITY
+// SEARCH WITH SUGGESTIONS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-async function searchPlace(){
-  const input = document.getElementById('search-input');
-  const query = input.value.trim();
-  if(!query){ showStatus('Please type a place name','warn'); return; }
+const searchInput = document.getElementById('search-input');
+const suggestions = document.getElementById('suggestions');
 
-  showStatus('Searching…','ok',0);
-  try{
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
-    const resp = await fetch(url,{ headers:{ 'User-Agent':'CensusMapperApp/1.0' } });
-    const data = await resp.json();
-    if(!data.length){ showStatus('Place not found','err'); return; }
-    const place = data[0];
-    const lat = parseFloat(place.lat);
-    const lon = parseFloat(place.lon);
-    map.flyTo([lat, lon], 17, {duration:1});
-
-    // Add temporary marker
-    if(searchMarker) map.removeLayer(searchMarker);
-    searchMarker = L.marker([lat,lon],{
-      icon: L.divIcon({className:'',html:'<div style="background:#ef4444;width:12px;height:12px;border-radius:50%;border:2px solid #fff;"></div>',iconSize:[12,12],iconAnchor:[6,6]})
-    }).addTo(map).bindPopup(`<b>${esc(place.display_name)}</b>`).openPopup();
-    showStatus(`Found: ${place.display_name.split(',')[0]}`,'ok',3000);
-    input.value = '';
-  }catch(e){
-    showStatus('Search failed – check connection','err');
+searchInput.addEventListener('input', function(){
+  const val = this.value.trim();
+  if(val.length < 2){
+    suggestions.classList.remove('on');
+    return;
   }
-}
-// Allow Enter key in search box
-document.getElementById('search-input').addEventListener('keydown',e=>{
-  if(e.key==='Enter') searchPlace();
+  clearTimeout(suggestTimer);
+  suggestTimer = setTimeout(()=>fetchSuggestions(val), 300);
 });
 
+searchInput.addEventListener('keydown', function(e){
+  const items = suggestions.querySelectorAll('.sug-item');
+  if(!items.length) return;
+  let idx = Array.from(items).findIndex(el=>el.classList.contains('active'));
+  if(e.key === 'ArrowDown'){
+    e.preventDefault();
+    idx = (idx + 1) % items.length;
+    items.forEach(el=>el.classList.remove('active'));
+    items[idx].classList.add('active');
+    items[idx].scrollIntoView({block:'nearest'});
+  } else if(e.key === 'ArrowUp'){
+    e.preventDefault();
+    idx = (idx - 1 + items.length) % items.length;
+    items.forEach(el=>el.classList.remove('active'));
+    items[idx].classList.add('active');
+    items[idx].scrollIntoView({block:'nearest'});
+  } else if(e.key === 'Enter'){
+    e.preventDefault();
+    if(idx >= 0) items[idx].click();
+    else searchPlace();
+  } else if(e.key === 'Escape'){
+    suggestions.classList.remove('on');
+  }
+});
+
+document.addEventListener('click', function(e){
+  if(!e.target.closest('#search-wrapper')) suggestions.classList.remove('on');
+});
+
+async function fetchSuggestions(query){
+  try{
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`;
+    const resp = await fetch(url, {headers:{'User-Agent':'CensusMapperApp/1.0'}});
+    const data = await resp.json();
+    if(!data.length){ suggestions.classList.remove('on'); return; }
+    suggestCache = data;
+    renderSuggestions(data);
+    suggestions.classList.add('on');
+  }catch(e){
+    suggestions.classList.remove('on');
+  }
+}
+
+function renderSuggestions(data){
+  suggestions.innerHTML = data.map((place,idx)=>{
+    const name = place.display_name.split(',')[0];
+    const detail = place.display_name.split(',').slice(1).join(', ').trim();
+    return `<li class="sug-item" data-idx="${idx}">
+      <div class="sug-name">${esc(name)}</div>
+      <div class="sug-detail">${esc(detail)}</div>
+    </li>`;
+  }).join('');
+  // Add click listeners
+  suggestions.querySelectorAll('.sug-item').forEach(item=>{
+    item.addEventListener('click', function(){
+      const idx = parseInt(this.dataset.idx);
+      if(!isNaN(idx) && suggestCache[idx]) selectSuggestion(suggestCache[idx]);
+    });
+  });
+}
+
+function selectSuggestion(place){
+  suggestions.classList.remove('on');
+  searchInput.value = '';
+  const lat = parseFloat(place.lat);
+  const lon = parseFloat(place.lon);
+  map.flyTo([lat, lon], 17, {duration:1});
+  if(searchMarker) map.removeLayer(searchMarker);
+  searchMarker = L.marker([lat,lon],{
+    icon: L.divIcon({className:'',html:'<div style="background:#ef4444;width:12px;height:12px;border-radius:50%;border:2px solid #fff;"></div>',iconSize:[12,12],iconAnchor:[6,6]})
+  }).addTo(map).bindPopup(`<b>${esc(place.display_name)}</b>`).openPopup();
+  showStatus(`Found: ${place.display_name.split(',')[0]}`,'ok',3000);
+}
+
+// Manual search (button or Enter with no suggestions active)
+function searchPlace(){
+  const val = searchInput.value.trim();
+  if(!val){ showStatus('Please type a place name','warn'); return; }
+  suggestions.classList.remove('on');
+  showStatus('Searching…','ok',0);
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&limit=1`,{
+    headers:{'User-Agent':'CensusMapperApp/1.0'}
+  })
+  .then(r=>r.json())
+  .then(data=>{
+    if(!data.length){ showStatus('Place not found','err'); return; }
+    selectSuggestion(data[0]);
+  })
+  .catch(()=>showStatus('Search failed – check connection','err'));
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// GPS (with drag-pause logic)
+// GPS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 let gpsOn=false;
 function toggleGPS(){ gpsOn?stopGPS():startGPS(); }
@@ -1088,7 +1172,6 @@ function renderAll(){
   features.filter(f=>f.geometryType==='boundary').forEach(f=>{
     const poly = L.polygon(f.coords,{color:'#fff',weight:3,fillOpacity:.05,dashArray:'10,8'}).addTo(mkLayer);
     bndy++;
-    // Add a label at the centroid of the boundary
     const center = L.latLngBounds(f.coords).getCenter();
     L.tooltip({permanent:true, className:'map-label', direction:'center'})
       .setLatLng(center)
@@ -1096,7 +1179,7 @@ function renderAll(){
       .addTo(mkLayer);
   });
 
-  // Lines (roads, rivers…)
+  // Lines
   features.filter(f=>f.geometryType==='line').forEach(f=>{
     let style = {weight:4,color:'#fff'};
     if(f.type==='bad-road') style.dashArray='8,6';
@@ -1106,7 +1189,6 @@ function renderAll(){
     if(f.type==='canal'){ style.weight=4; style.color='#06b6d4'; }
     const poly=L.polyline(f.coords,style).addTo(mkLayer);
     road++;
-    // Always show name if present, else a default label
     const label = f.name || (f.type==='river'?'River':f.type==='canal'?'Canal':f.type==='railway'?'Railway':f.type==='pathway'?'Path':'Road');
     const mid=f.coords[Math.floor(f.coords.length/2)];
     L.tooltip({permanent:true,className:'map-label',direction:'center'}).setLatLng(mid).setContent(label).addTo(mkLayer);
@@ -1122,7 +1204,7 @@ function renderAll(){
     attachPolyEvents(poly,f.id);
   });
 
-  // Points — houses + all other types
+  // Points
   features.filter(f=>f.geometryType==='point').forEach(f=>{
     bldg++;
     let html='';
@@ -1155,13 +1237,11 @@ function renderAll(){
     const mk=L.marker(f.coords,{icon,draggable:false,zIndexOffset:100}).addTo(mkLayer);
     allMarkerRefs[f.id]=mk;
 
-    // ── Build a permanent label for every point ──
+    // Permanent label for every point
     let labelText = '';
     if(f.name) labelText = f.name;
     if(f.censusCount && f.censusCount>1) labelText = labelText ? labelText+` (${f.censusCount})` : `(${f.censusCount})`;
     else if(f.censusCount===1 && !f.name) labelText = '1';
-
-    // If still empty, show type abbreviation as fallback
     if(!labelText){
       if(isHouse) labelText = '🏠';
       else {
@@ -1173,8 +1253,6 @@ function renderAll(){
         labelText = abbr[f.type] || '📍';
       }
     }
-
-    // Always bind the permanent tooltip (label)
     mk.bindTooltip(labelText,{permanent:true,direction:'right',className:'map-label',offset:[12,0]});
 
     mk.on('click',function(e){
@@ -1351,7 +1429,7 @@ document.addEventListener('keydown',e=>{
 // INIT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 renderAll();
-showStatus('Search a place, then mark features — all labels always visible','ok',6000);
+showStatus('Type a place to search — suggestions appear as you type','ok',6000);
 </script>
 </body>
 </html>
