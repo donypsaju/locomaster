@@ -507,10 +507,17 @@ const map = L.map('map',{
 
 L.control.zoom({position:'topright'}).addTo(map);
 
+// FIX: added maxNativeZoom to prevent "Map data not yet available"
 const TILES = {
-  osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM',maxZoom:22}),
-  sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:20}),
-  dark:L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CARTO',maxZoom:22})
+  osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© OSM', maxZoom:22, maxNativeZoom:19
+  }),
+  sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+    attribution:'© Esri', maxZoom:22, maxNativeZoom:20
+  }),
+  dark:L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+    attribution:'© CARTO', maxZoom:22, maxNativeZoom:20
+  })
 };
 let currentBase = TILES.osm;
 currentBase.addTo(map);
@@ -581,7 +588,6 @@ function startGPS(){
       });
       youMk.on('dragend',function(e){
         const pos=e.target.getLatLng();
-        // Update the circle to the new position (keep it consistent)
         if(youCircle){
           map.removeLayer(youCircle);
           youCircle=L.circle([pos.lat,pos.lng],{radius:acc,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:.08,weight:1,dashArray:'4,4'}).addTo(map);
