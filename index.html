@@ -49,6 +49,22 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 .lbadge{background:var(--glow);border:1px solid var(--accent);color:var(--accent);font-size:9px;padding:1px 6px;border-radius:20px}
 #hsp{flex:1}
 
+/* Search box */
+#searchbox{
+  display:flex;align-items:center;background:var(--card);border:1px solid var(--border2);
+  border-radius:20px;overflow:hidden;margin-right:8px;
+}
+#searchbox input{
+  background:transparent;border:none;outline:none;color:var(--text);font-size:11px;
+  padding:5px 8px;width:110px;font-family:var(--font);
+}
+#searchbox input::placeholder{color:var(--text3)}
+#searchbox button{
+  background:transparent;border:none;color:var(--text3);padding:0 8px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+#searchbox button:hover{color:var(--accent)}
+
 /* GPS pill */
 #gpspill{display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border2);border-radius:20px;padding:4px 10px;font-size:10px;color:var(--text3);white-space:nowrap;cursor:pointer;transition:.2s}
 #gpspill:hover{border-color:var(--accent)}
@@ -278,6 +294,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   .tb{min-width:48px;padding:6px 7px}
   .tb i{font-size:17px}
   .logo span.txt{display:none}
+  #searchbox input{width:80px}
 }
 @media(max-height:480px) and (max-width:900px){
   :root{--hh:40px;--tbh:54px}
@@ -301,6 +318,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
     <span class="lbadge">Field</span>
   </div>
   <div id="hsp"></div>
+  <div id="searchbox">
+    <input type="text" id="search-input" placeholder="Search place…" autocomplete="off"/>
+    <button onclick="searchPlace()"><i class="ti ti-search"></i></button>
+  </div>
   <div id="modebadge"><i class="ti ti-hand-stop" id="modeicon"></i><span id="modetxt">Pan</span></div>
   <div id="gpspill" onclick="toggleGPS()">
     <div id="gdot" class=""></div>
@@ -577,8 +598,46 @@ let gpsPausedByDrag = false;
 
 // Boundary edit state
 let editBndFid    = null;
-let editBndCoords = null;  // working copy
-let editBndMkGrp  = null;  // featureGroup for vertex markers + line
+let editBndCoords = null;
+let editBndMkGrp  = null;
+
+// Search result marker
+let searchMarker = null;
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SEARCH FUNCTIONALITY
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function searchPlace(){
+  const input = document.getElementById('search-input');
+  const query = input.value.trim();
+  if(!query){ showStatus('Please type a place name','warn'); return; }
+
+  showStatus('Searching…','ok',0);
+  try{
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+    const resp = await fetch(url,{ headers:{ 'User-Agent':'CensusMapperApp/1.0' } });
+    const data = await resp.json();
+    if(!data.length){ showStatus('Place not found','err'); return; }
+    const place = data[0];
+    const lat = parseFloat(place.lat);
+    const lon = parseFloat(place.lon);
+    map.flyTo([lat, lon], 17, {duration:1});
+
+    // Add temporary marker
+    if(searchMarker) map.removeLayer(searchMarker);
+    searchMarker = L.marker([lat,lon],{
+      icon: L.divIcon({className:'',html:'<div style="background:#ef4444;width:12px;height:12px;border-radius:50%;border:2px solid #fff;"></div>',iconSize:[12,12],iconAnchor:[6,6]})
+    }).addTo(map).bindPopup(`<b>${esc(place.display_name)}</b>`).openPopup();
+    showStatus(`Found: ${place.display_name.split(',')[0]}`,'ok',3000);
+    input.value = '';
+  }catch(e){
+    showStatus('Search failed – check connection','err');
+  }
+}
+// Allow Enter key in search box
+document.getElementById('search-input').addEventListener('keydown',e=>{
+  if(e.key==='Enter') searchPlace();
+});
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // GPS (with drag-pause logic)
@@ -659,7 +718,6 @@ const MODES={
 };
 function setMode(m){
   if(draggingMk){endDragMode(false);}
-  // Exit boundary edit if active
   if(editBndFid !== null) cancelBoundaryEdit();
   currentMode=m;
   tempCoords=[];
@@ -791,13 +849,10 @@ function enterBoundaryEdit(fid){
   const f = features.find(x=>x.id===fid);
   if(!f) return;
   editBndFid = fid;
-  editBndCoords = f.coords.map(c=>[...c]); // deep copy
+  editBndCoords = f.coords.map(c=>[...c]);
   document.getElementById('bnd-edit-bar').classList.add('on');
 
-  // Create editable layer
   editBndMkGrp = L.featureGroup().addTo(map);
-
-  // Add vertex markers (draggable)
   editBndCoords.forEach((coord,idx)=>{
     const marker = L.circleMarker(coord, {radius:5, color:'#fff', fillColor:'#f59e0b', fillOpacity:1, weight:2, draggable:true})
       .addTo(editBndMkGrp);
@@ -807,23 +862,16 @@ function enterBoundaryEdit(fid){
       redrawBoundaryEditLine();
     });
   });
-
-  // Polygon outline (dashed)
   redrawBoundaryEditLine();
-
-  // Add map click listener to append new points after the last
   map.on('click', onBoundaryEditClick);
-  showStatus('Tap map to add new vertices (after last), drag to move', 'ok', 0);
+  showStatus('Tap map to add new vertices (after last), drag to move','ok',0);
   setMode('view');
 }
 
 function onBoundaryEditClick(e){
   if(editBndFid === null) return;
-  // Add new point at the end
   const ll = [e.latlng.lat, e.latlng.lng];
   editBndCoords.push(ll);
-
-  // Create marker for the new point
   const marker = L.circleMarker(ll, {radius:5, color:'#fff', fillColor:'#f59e0b', fillOpacity:1, weight:2, draggable:true})
     .addTo(editBndMkGrp);
   const idx = editBndCoords.length - 1;
@@ -833,11 +881,10 @@ function onBoundaryEditClick(e){
     redrawBoundaryEditLine();
   });
   redrawBoundaryEditLine();
-  showStatus(`Point added (${editBndCoords.length} total)`, 'ok', 1000);
+  showStatus(`Point added (${editBndCoords.length} total)`,'ok',1000);
 }
 
 function redrawBoundaryEditLine(){
-  // Remove old line from group
   editBndMkGrp.eachLayer(layer=>{
     if(layer instanceof L.Polyline) editBndMkGrp.removeLayer(layer);
   });
@@ -869,17 +916,15 @@ function cancelBoundaryEdit(keepMapQuiet=false){
     editBndCoords = null;
     editBndMkGrp = null;
     document.getElementById('bnd-edit-bar').classList.remove('on');
-    if(!keepMapQuiet) showStatus('Boundary edit cancelled', 'warn', 2000);
+    if(!keepMapQuiet) showStatus('Boundary edit cancelled','warn',2000);
   }
 }
 
-// Also cancel editing when undo/delete boundary happens
 const origDeleteFeature = deleteFeature;
 deleteFeature = function(fid){
   if(editBndFid === fid) cancelBoundaryEdit(true);
   origDeleteFeature(fid);
 };
-
 const origUndoLast = undoLast;
 undoLast = function(){
   if(editBndFid !== null) cancelBoundaryEdit(true);
@@ -974,7 +1019,7 @@ function saveFeature(){
       feature.subtype = document.getElementById('pt-subtype').value;
       feature.censusCount = parseInt(document.getElementById('pt-census').value)||1;
     } else {
-      feature.subtype = 'nr'; // non-residential
+      feature.subtype = 'nr';
       feature.censusCount = 0;
     }
     feature.name = document.getElementById('pt-name').value.trim();
@@ -996,7 +1041,6 @@ function savePathFeature(gtype,coords){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function editFeature(fid){
   const f=features.find(x=>x.id===fid); if(!f) return;
-  // Boundaries don't have a modal yet; later we could add a simple form
   if(f.geometryType==='boundary'){
     showStatus('Boundary properties coming soon. Use "Edit shape" to adjust vertices.','ok',3000);
     return;
@@ -1033,7 +1077,7 @@ function dismissUndo(){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// RENDER — EXTENDED ICONS FOR NEW TYPES
+// RENDER — MAX LABELS + ENHANCED LABELS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function renderAll(){
   mkLayer.clearLayers();
@@ -1042,8 +1086,14 @@ function renderAll(){
 
   // Boundaries
   features.filter(f=>f.geometryType==='boundary').forEach(f=>{
-    L.polygon(f.coords,{color:'#fff',weight:3,fillOpacity:.05,dashArray:'10,8'}).addTo(mkLayer);
+    const poly = L.polygon(f.coords,{color:'#fff',weight:3,fillOpacity:.05,dashArray:'10,8'}).addTo(mkLayer);
     bndy++;
+    // Add a label at the centroid of the boundary
+    const center = L.latLngBounds(f.coords).getCenter();
+    L.tooltip({permanent:true, className:'map-label', direction:'center'})
+      .setLatLng(center)
+      .setContent('📐 '+(f.name||'Boundary'))
+      .addTo(mkLayer);
   });
 
   // Lines (roads, rivers…)
@@ -1056,10 +1106,10 @@ function renderAll(){
     if(f.type==='canal'){ style.weight=4; style.color='#06b6d4'; }
     const poly=L.polyline(f.coords,style).addTo(mkLayer);
     road++;
-    if(f.name){
-      const mid=f.coords[Math.floor(f.coords.length/2)];
-      L.tooltip({permanent:true,className:'map-label',direction:'center'}).setLatLng(mid).setContent(f.name).addTo(mkLayer);
-    }
+    // Always show name if present, else a default label
+    const label = f.name || (f.type==='river'?'River':f.type==='canal'?'Canal':f.type==='railway'?'Railway':f.type==='pathway'?'Path':'Road');
+    const mid=f.coords[Math.floor(f.coords.length/2)];
+    L.tooltip({permanent:true,className:'map-label',direction:'center'}).setLatLng(mid).setContent(label).addTo(mkLayer);
     attachPolyEvents(poly,f.id);
   });
 
@@ -1105,13 +1155,27 @@ function renderAll(){
     const mk=L.marker(f.coords,{icon,draggable:false,zIndexOffset:100}).addTo(mkLayer);
     allMarkerRefs[f.id]=mk;
 
+    // ── Build a permanent label for every point ──
     let labelText = '';
     if(f.name) labelText = f.name;
     if(f.censusCount && f.censusCount>1) labelText = labelText ? labelText+` (${f.censusCount})` : `(${f.censusCount})`;
     else if(f.censusCount===1 && !f.name) labelText = '1';
-    if(labelText){
-      mk.bindTooltip(labelText,{permanent:true,direction:'right',className:'map-label',offset:[12,0]});
+
+    // If still empty, show type abbreviation as fallback
+    if(!labelText){
+      if(isHouse) labelText = '🏠';
+      else {
+        const abbr = {
+          'temple':'Temple','mosque':'Mosque','church':'Church','gurudwara':'Gurudwara',
+          'school':'School','dispensary':'Dispensary','panchayat-office':'Panchayat','post-office':'Post Office',
+          'well-handpump':'Well','pond':'Pond','other-institution':'Institution','other-building':'Building'
+        };
+        labelText = abbr[f.type] || '📍';
+      }
     }
+
+    // Always bind the permanent tooltip (label)
+    mk.bindTooltip(labelText,{permanent:true,direction:'right',className:'map-label',offset:[12,0]});
 
     mk.on('click',function(e){
       L.DomEvent.stopPropagation(e);
@@ -1136,7 +1200,7 @@ function attachPolyEvents(poly,fid){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// FIT TO AREA & PRINT (unchanged)
+// FIT TO AREA & PRINT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function fitToArea(){
   const bounds = L.latLngBounds([]);
@@ -1159,7 +1223,7 @@ printStyle.textContent=`@media print{body.printing #header,body.printing #toolba
 document.head.appendChild(printStyle);
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// IMAGE OVERLAY (unchanged)
+// IMAGE OVERLAY
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function loadImageOverlay(ev){
   const file=ev.target.files[0];if(!file)return;
@@ -1287,7 +1351,7 @@ document.addEventListener('keydown',e=>{
 // INIT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 renderAll();
-showStatus('GPS → drag to fine‑tune → Mark Building / Road / Boundary','ok',6000);
+showStatus('Search a place, then mark features — all labels always visible','ok',6000);
 </script>
 </body>
 </html>
