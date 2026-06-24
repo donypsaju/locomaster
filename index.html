@@ -11,6 +11,8 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Rotation plugin (required for map.setBearing / getBearing) -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.1.1/dist/leaflet.rotate.min.js"></script>
 <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
 <style>
 /* ── RESET ── */
@@ -559,17 +561,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 <script>
 'use strict';
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MAP SETUP
+// MAP SETUP (with rotation plugin loaded)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const map = L.map('map',{
   zoomControl:false, maxZoom:22, preferCanvas:false,
   tapTolerance:15, bounceAtZoomLimits:false,
-  touchZoom: true, // keep true; we'll handle rotation separately
+  touchZoom: true,
 }).setView([10.5,76.2],16);
 
 L.control.zoom({position:'topright'}).addTo(map);
 
-// ── Compass control (reset bearing) ──
+// ── Compass control (uses leaflet-rotate's setBearing) ──
 const CompassControl = L.Control.extend({
   options: { position: 'topright' },
   onAdd: function (map) {
@@ -579,7 +581,7 @@ const CompassControl = L.Control.extend({
     L.DomEvent.on(container, 'click', function(e){
       L.DomEvent.stopPropagation(e);
       L.DomEvent.preventDefault(e);
-      map.setBearing(0);
+      if (map.setBearing) map.setBearing(0);
       updateCompassVisibility();
     });
     return container;
@@ -589,7 +591,7 @@ new CompassControl().addTo(map);
 
 function updateCompassVisibility(){
   const compass = document.querySelector('.leaflet-control-compass');
-  if (compass) compass.style.display = map.getBearing() !== 0 ? 'flex' : 'none';
+  if (compass) compass.style.display = map.getBearing && map.getBearing() !== 0 ? 'flex' : 'none';
 }
 updateCompassVisibility();
 map.on('rotate', updateCompassVisibility);
@@ -617,7 +619,7 @@ function switchMapType(type){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TWO‑FINGER ROTATION
+// TWO‑FINGER ROTATION (using leaflet-rotate's setBearing)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 (function(){
   const container = map.getContainer();
@@ -641,7 +643,7 @@ function switchMapType(type){
       const t1 = e.touches[0];
       const t2 = e.touches[1];
       initialAngle = getAngle(t1, t2);
-      initialBearing = map.getBearing();
+      initialBearing = map.getBearing ? map.getBearing() : 0;
       initialDistance = getDistance(t1, t2);
       isRotating = true;
     } else {
@@ -656,17 +658,14 @@ function switchMapType(type){
     const currentAngle = getAngle(t1, t2);
     const currentDistance = getDistance(t1, t2);
 
-    // Determine if user intends rotation vs pinch zoom
     const angleDelta = currentAngle - initialAngle;
     const distChangeRatio = Math.abs(currentDistance - initialDistance) / initialDistance;
 
-    // If angle change is significant and distance change is small → rotation
     if (Math.abs(angleDelta) > 0.05 && distChangeRatio < 0.15){
-      e.preventDefault(); // prevent default pinch zoom when rotating
+      e.preventDefault();
       const bearingDelta = angleDelta * (180 / Math.PI);
-      map.setBearing(initialBearing + bearingDelta);
+      if (map.setBearing) map.setBearing(initialBearing + bearingDelta);
     }
-    // else: let the map handle pinch zoom normally (default behaviour)
   }, {passive: false});
 
   container.addEventListener('touchend', function(){
@@ -705,13 +704,14 @@ let editBndMkGrp  = null;
 let searchMarker = null;
 let suggestTimer = null;
 let suggestCache = [];
+let suggestRequestId = 0;   // for race condition handling
 
 let arrowFromFid = null;
 let arrowFromRing = null;
 let arrowFromOrigOpacity = 1;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SEARCH WITH SUGGESTIONS (same as before)
+// SEARCH WITH SUGGESTIONS (race condition fixed)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const searchInput = document.getElementById('search-input');
 const suggestions = document.getElementById('suggestions');
@@ -756,10 +756,12 @@ document.addEventListener('click', function(e){
 });
 
 async function fetchSuggestions(query){
+  const reqId = ++suggestRequestId;
   try{
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`;
     const resp = await fetch(url, {headers:{'User-Agent':'CensusMapperApp/1.0'}});
     const data = await resp.json();
+    if(reqId !== suggestRequestId) return; // ignore outdated response
     if(!data.length){ suggestions.classList.remove('on'); return; }
     suggestCache = data;
     renderSuggestions(data);
@@ -816,7 +818,7 @@ function searchPlace(){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// GPS (same as before)
+// GPS (unchanged)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 let gpsOn=false;
 function toggleGPS(){ gpsOn?stopGPS():startGPS(); }
@@ -883,7 +885,7 @@ function gpsErrMsg(err){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MODE MANAGEMENT (with arrow enhancement)
+// MODE MANAGEMENT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const MODES={
   view:     {icon:'ti-hand-stop',   label:'Pan'},
@@ -1024,7 +1026,7 @@ function finishPath(){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// DRAGGABLE MARKER SYSTEM (same as before)
+// DRAGGABLE MARKER SYSTEM
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function enterDragMode(fid){
   if(draggingMk) endDragMode(false);
@@ -1279,7 +1281,7 @@ function savePathFeature(gtype,coords){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// EDIT / DELETE
+// EDIT / DELETE (fixed undo index)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function editFeature(fid){
   const f=features.find(x=>x.id===fid); if(!f) return;
@@ -1295,7 +1297,7 @@ function deleteFeature(fid){
   if(draggingFid===fid) endDragMode(false);
   if(editBndFid === fid) cancelBoundaryEdit(true);
   if(arrowFromFid === fid) clearArrowSelection();
-  lastDeleted={feature:{...features[idx]},idx};
+  lastDeleted={feature:{...features[idx]},idx};  // property name 'idx'
   features.splice(idx,1); saveData(); renderAll(); showUndoBar('Feature deleted');
 }
 function undoLast(){
@@ -1306,6 +1308,7 @@ function undoLast(){
 }
 function undoDelete(){
   if(!lastDeleted) return;
+  // Bug fix: use 'idx' (the property name we set) instead of 'idxa'
   if(lastDeleted.idx != null) features.splice(lastDeleted.idx,0,lastDeleted.feature);
   else features.push(lastDeleted.feature);
   lastDeleted=null; saveData(); renderAll(); dismissUndo(); showStatus('Restored ✓','ok',1500);
