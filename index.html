@@ -92,8 +92,10 @@ input,select{font-family:inherit}
 #gpspill:active{transform:scale(.96)}
 #gdot{width:7px;height:7px;border-radius:50%;background:var(--ink3);flex-shrink:0;transition:all .3s}
 #gdot.lock{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+#gdot.fair{background:var(--warn)}
 #gdot.search{background:var(--warn);animation:blink 1s infinite}
 #gdot.poor{background:var(--danger)}
+#gdot.refining{background:var(--data);animation:blink .7s infinite}
 
 /* ── REMINDER BANNER (flows in shell, no z-index needed) ── */
 #reminder-banner{
@@ -158,6 +160,14 @@ input,select{font-family:inherit}
   box-shadow:0 2px 10px rgba(0,0,0,.4);
 }
 #walk-distance-badge button{background:transparent;border:none;color:var(--data);opacity:.7;padding:4px;border-radius:50%;display:flex;cursor:pointer}
+
+#mark-here-btn{
+  display:none;align-items:center;gap:7px;background:var(--signal);border:none;
+  border-radius:20px;padding:8px 13px 8px 11px;font-size:11px;font-weight:700;color:#fff;
+  cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.4);align-self:flex-start;
+}
+#mark-here-btn:active{transform:scale(.96)}
+#mark-here-btn i{font-size:15px}
 
 /* Mode pill (top-center, only while drawing) */
 #mode-pill{
@@ -432,9 +442,10 @@ input,select{font-family:inherit}
 .mbtn:active{opacity:.7}
 .mbtn.pr{background:var(--signal);border-color:var(--signal);color:#fff}
 
-.seg-row{display:flex;background:var(--s3);border-radius:11px;padding:3px;gap:3px}
-.seg{flex:1;padding:9px 6px;border:none;background:transparent;border-radius:8px;color:var(--ink2);font-size:11.5px;font-weight:600;cursor:pointer}
+.seg-row{display:flex;background:var(--s3);border:1px solid var(--line2);border-radius:11px;padding:3px;gap:3px;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+.seg{flex:1;padding:9px 6px;border:none;background:transparent;border-radius:8px;color:var(--ink2);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
 .seg.active{background:var(--signal);color:#fff}
+.seg-icon{flex:0 0 auto;display:flex;align-items:center;justify-content:center;padding:9px 11px;font-size:14px;border-left:1px solid var(--line)}
 
 .import-summary{background:var(--s3);border-radius:10px;padding:13px;font-size:12px;color:var(--ink2);line-height:1.7;margin-bottom:6px}
 .import-summary .im-warn{color:var(--warn)}
@@ -554,6 +565,15 @@ input,select{font-family:inherit}
             <ul id="suggestions"></ul>
           </div>
         </div>
+        <div class="seg-row" id="maptype-switch">
+          <button class="seg active" data-maptype="osm" onclick="switchMapType('osm')">Map</button>
+          <button class="seg" data-maptype="sat" onclick="switchMapType('sat')">Sat</button>
+          <button class="seg" data-maptype="dark" onclick="switchMapType('dark')">Dark</button>
+          <button class="seg seg-icon" onclick="document.getElementById('fileup').click()" title="Load reference photo"><i class="ti ti-photo-plus"></i></button>
+        </div>
+        <button id="mark-here-btn" onclick="markHereGPS()">
+          <i class="ti ti-home-plus"></i><span>Mark Here</span>
+        </button>
         <div id="walk-distance-badge">
           <i class="ti ti-route"></i><span>0 m</span>
           <button onclick="clearWalkTrail()" title="Clear trail"><i class="ti ti-x" style="font-size:12px"></i></button>
@@ -727,26 +747,14 @@ input,select{font-family:inherit}
   <button class="ubtn" style="background:var(--ink3)" onclick="dismissUndo()">✕</button>
 </div>
 
-<!-- ═══ LAYERS SHEET ═══ -->
-<div id="layers-overlay" class="ovl">
-  <div class="sheet">
-    <div class="mdragger"></div>
-    <h3><i class="ti ti-layers" style="color:var(--signal)"></i>Map Layer</h3>
-    <div class="seg-row">
-      <button class="seg active" data-maptype="osm" onclick="switchMapType('osm')">Streets</button>
-      <button class="seg" data-maptype="sat" onclick="switchMapType('sat')">Satellite</button>
-      <button class="seg" data-maptype="dark" onclick="switchMapType('dark')">Dark</button>
-    </div>
-    <button class="mbtn" style="margin-top:16px;width:100%" onclick="closeLayersSheet();document.getElementById('fileup').click()"><i class="ti ti-photo-plus" style="margin-right:6px"></i>Load Reference Photo</button>
-    <input type="file" id="fileup" accept="image/*" style="display:none" onchange="loadImageOverlay(event)"/>
-    <button class="mbtn" style="margin-top:9px;width:100%" onclick="closeLayersSheet()">Close</button>
-  </div>
-</div>
+<!-- ═══ Hidden file input for reference-photo loading ═══ -->
+<input type="file" id="fileup" accept="image/*" style="display:none" onchange="loadImageOverlay(event)"/>
 
 <!-- ═══ FEATURE MODAL ═══ -->
 <div id="moverlay" class="ovl">
   <div id="modal" class="sheet">
     <div class="mdragger"></div>
+
     <h3 id="modal-title"><i class="ti ti-home-plus" style="color:var(--signal)"></i>Feature Details</h3>
 
     <div id="form-point" style="display:none">
@@ -928,6 +936,7 @@ const CompassControl = L.Control.extend({
   options:{position:'topright'},
   onAdd:function(m){
     const c = L.DomUtil.create('div','map-ctrl-btn');
+    c.id = 'compass-ctrl-btn';
     c.innerHTML = '<i class="ti ti-arrow-north" style="font-size:16px"></i>';
     c.title = 'Reset north';
     L.DomEvent.on(c,'click',function(e){
@@ -939,21 +948,6 @@ const CompassControl = L.Control.extend({
   }
 });
 new CompassControl().addTo(map);
-
-const LayersControl = L.Control.extend({
-  options:{position:'topright'},
-  onAdd:function(){
-    const c = L.DomUtil.create('div','map-ctrl-btn');
-    c.innerHTML = '<i class="ti ti-layers" style="font-size:16px"></i>';
-    c.title = 'Map layer';
-    L.DomEvent.on(c,'click',function(e){
-      L.DomEvent.stopPropagation(e); L.DomEvent.preventDefault(e);
-      openLayersSheet();
-    });
-    return c;
-  }
-});
-new LayersControl().addTo(map);
 
 const WalkControl = L.Control.extend({
   options:{position:'topright'},
@@ -972,7 +966,11 @@ const WalkControl = L.Control.extend({
 new WalkControl().addTo(map);
 
 function updateCompassVisibility(){
-  const compass = document.querySelector('.map-ctrl-btn');
+  // FIX: query the compass button by its own unique id, not the shared
+  // .map-ctrl-btn class — that class is also used by the walk-track
+  // button, and querySelector() would only ever touch whichever one
+  // happens to be first in the DOM, silently hiding the wrong control.
+  const compass = document.getElementById('compass-ctrl-btn');
   if(compass) compass.style.display = (map.getBearing && map.getBearing()!==0) ? 'flex' : 'none';
 }
 updateCompassVisibility();
@@ -992,8 +990,6 @@ function switchMapType(type){
   currentBase.addTo(map);
   document.querySelectorAll('.seg[data-maptype]').forEach(b=>b.classList.toggle('active', b.dataset.maptype===type));
 }
-function openLayersSheet(){ document.getElementById('layers-overlay').classList.add('open'); }
-function closeLayersSheet(){ document.getElementById('layers-overlay').classList.remove('open'); }
 
 /* ── Two-finger rotation (NaN/zero-distance guarded) ── */
 (function(){
@@ -1061,6 +1057,12 @@ let activeTab='map';
 const TABS=['map','buildings','stage2','stats','backup'];
 let fabOpen=false;
 let gpsOn=false, followMode=false;
+let lastGoodAcc=null;
+
+// GPS best-fix collector: averages several consecutive readings (weighted
+// by accuracy) for the two actions where placement precision matters most —
+// Mark Here and Snap to GPS — instead of trusting a single noisy sample.
+let bestFixCollecting=false, bestFixSamples=[], bestFixResolve=null, bestFixTimer=null;
 
 let quickMarkOn = (localStorage.getItem('census-quickmark')==='1');
 let qmLast = {type:'pucca-house', subtype:'res', censusCount:1};
@@ -1194,13 +1196,33 @@ function startGPS(){
   if(!navigator.geolocation){ showStatus('GPS not supported on this device','err'); return; }
   const dot=document.getElementById('gdot'), lbl=document.getElementById('glbl');
   dot.className='search'; lbl.textContent='Searching…';
-  gpsOn=true; gpsPausedByDrag=false; followMode=true;
+  gpsOn=true; gpsPausedByDrag=false; followMode=true; lastGoodAcc=null;
+  document.getElementById('mark-here-btn').style.display='flex';
 
   watchId=navigator.geolocation.watchPosition(p=>{
     const {latitude:lat, longitude:lng, accuracy:acc} = p.coords;
-    dot.className = acc<=20 ? 'lock' : 'poor';
+
+    // Feed every raw reading to the best-fix collector (used by Mark Here /
+    // Snap to GPS) — inverse-variance weighting there naturally discounts
+    // noisy samples, so nothing needs filtering before this point.
+    feedBestFixSample(lat,lng,acc);
+
+    // Three-tier accuracy feedback instead of a binary lock/poor split —
+    // more honest about what "an OK fix" looks like versus a tight one.
+    if(!bestFixCollecting) dot.className = acc<=15 ? 'lock' : (acc<=30 ? 'fair' : 'poor');
     lbl.textContent = '±'+Math.round(acc)+'m';
+
     const ll=[lat,lng];
+
+    // Outlier rejection: a reading that's suddenly much worse than our
+    // recent accuracy AND absolutely poor is very likely a multipath spike
+    // (signal bounced off a building or tree canopy) rather than real
+    // movement. Skip moving the live marker for just that one sample so the
+    // dot doesn't visibly jump — the accuracy label above still reports it
+    // honestly, nothing is hidden, we just don't act on it spatially.
+    const isOutlier = lastGoodAcc!==null && acc > lastGoodAcc*4 && acc > 40 && !!youMk;
+    if(!isOutlier) lastGoodAcc = acc;
+
     if(!youMk){
       youMk=L.marker(ll,{icon:L.divIcon({className:'',html:'<div class="gps-pulse"></div>',iconSize:[14,14],iconAnchor:[7,7]}),draggable:true,zIndexOffset:2000}).addTo(map).bindPopup('<b style="font-size:12px">You are here</b>');
       youMk.on('dragstart', function(){ gpsPausedByDrag=true; showStatus('GPS location frozen – tap GPS to resume','warn',3000); });
@@ -1209,14 +1231,21 @@ function startGPS(){
         if(youCircle){ map.removeLayer(youCircle); youCircle=L.circle([pos.lat,pos.lng],{radius:acc,color:'#5b7cfa',fillColor:'#5b7cfa',fillOpacity:.08,weight:1,dashArray:'4,4'}).addTo(map); }
       });
       map.setView(ll,18);
-    } else {
-      if(!gpsPausedByDrag){ youMk.setLatLng(ll); if(followMode) map.panTo(ll,{animate:true,duration:0.5}); }
+    } else if(!isOutlier && !gpsPausedByDrag){
+      youMk.setLatLng(ll);
+      if(followMode) map.panTo(ll,{animate:true,duration:0.5});
     }
-    if(youCircle) map.removeLayer(youCircle);
-    youCircle=L.circle(ll,{radius:acc,color:'#5b7cfa',fillColor:'#5b7cfa',fillOpacity:.08,weight:1,dashArray:'4,4'}).addTo(map);
-    if(acc>30) showStatus('Weak GPS: ±'+Math.round(acc)+'m — move to open ground','warn');
-    else clearStatus();
-    if(walkTracking) recordWalkPoint(ll);
+
+    if(!isOutlier){
+      if(youCircle) map.removeLayer(youCircle);
+      youCircle=L.circle(ll,{radius:acc,color:'#5b7cfa',fillColor:'#5b7cfa',fillOpacity:.08,weight:1,dashArray:'4,4'}).addTo(map);
+      if(walkTracking) recordWalkPoint(ll);
+    }
+
+    if(!bestFixCollecting){
+      if(acc>30) showStatus('Weak GPS: ±'+Math.round(acc)+'m — move to open sky, away from buildings or trees','warn');
+      else clearStatus();
+    }
   }, err=>{
     dot.className='poor'; lbl.textContent='GPS Error';
     showStatus(gpsErrMsg(err),'err',6000);
@@ -1228,7 +1257,9 @@ function stopGPS(){
   if(youCircle){ map.removeLayer(youCircle); youCircle=null; }
   document.getElementById('gdot').className='';
   document.getElementById('glbl').textContent='GPS off';
-  gpsOn=false; gpsPausedByDrag=false; followMode=false;
+  document.getElementById('mark-here-btn').style.display='none';
+  gpsOn=false; gpsPausedByDrag=false; followMode=false; lastGoodAcc=null;
+  if(bestFixCollecting){ bestFixCollecting=false; clearTimeout(bestFixTimer); bestFixResolve=null; }
   if(walkTracking) toggleWalkTracking();
   clearStatus();
 }
@@ -1237,6 +1268,51 @@ function gpsErrMsg(err){
   if(err.code===2) return 'GPS unavailable — move outdoors';
   if(err.code===3) return 'GPS timed out — weak signal';
   return 'GPS error: '+(err.message||'unknown error');
+}
+
+/* ── GPS best-fix averaging ──
+   A single GPS reading can be noisy by tens of metres. For the two actions
+   where placement precision actually matters — Mark Here and Snap to GPS —
+   this collects several consecutive readings (already streaming in via
+   watchPosition) for up to a few seconds, combines them with inverse-
+   variance weighting (each sample trusted in proportion to 1/accuracy²,
+   the standard way to merge noisy measurements of the same fixed point),
+   and exits early the moment two genuinely good readings come in so a
+   strong fix is never made to wait around for no reason. */
+function collectBestFix(onDone){
+  if(!gpsOn || !youMk){ showStatus('Turn on GPS first','warn'); return; }
+  if(bestFixCollecting) return;
+  bestFixCollecting=true;
+  bestFixSamples=[];
+  bestFixResolve=onDone;
+  document.getElementById('gdot').className='refining';
+  document.getElementById('glbl').textContent='Refining…';
+  showStatus('Improving GPS fix — hold steady','ok',0);
+  haptic(10);
+  bestFixTimer=setTimeout(finishBestFix, 6000);
+}
+function feedBestFixSample(lat,lng,acc){
+  if(!bestFixCollecting) return;
+  bestFixSamples.push({lat,lng,acc});
+  if(acc<=6 && bestFixSamples.length>=2) finishBestFix();
+}
+function finishBestFix(){
+  if(!bestFixCollecting) return;
+  bestFixCollecting=false;
+  clearTimeout(bestFixTimer);
+  let result=null;
+  if(bestFixSamples.length){
+    let sw=0, slat=0, slng=0;
+    bestFixSamples.forEach(s=>{ const w=1/Math.pow(Math.max(s.acc,1),2); sw+=w; slat+=s.lat*w; slng+=s.lng*w; });
+    const lat=slat/sw, lng=slng/sw;
+    const bestAcc=Math.min(...bestFixSamples.map(s=>s.acc));
+    result={lat,lng,acc:bestAcc};
+    showStatus('GPS fix improved (best ±'+Math.round(bestAcc)+'m of '+bestFixSamples.length+' readings)','ok',2500);
+  } else {
+    clearStatus();
+  }
+  const resolve=bestFixResolve; bestFixResolve=null;
+  if(resolve) resolve(result);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1374,9 +1450,12 @@ function placeQuickMark(coords){
 }
 function markHereGPS(){
   if(!gpsOn || !youMk){ showStatus('Turn on GPS first','warn'); return; }
-  const pos=youMk.getLatLng();
-  if(quickMarkOn) placeQuickMark([pos.lat,pos.lng]);
-  else { setMode('view'); openModal('point',[pos.lat,pos.lng]); }
+  collectBestFix(function(best){
+    const p = youMk.getLatLng();
+    const coords = best ? [best.lat, best.lng] : [p.lat, p.lng];
+    if(quickMarkOn) placeQuickMark(coords);
+    else { setMode('view'); openModal('point', coords); }
+  });
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1515,9 +1594,13 @@ function snapToGPS(fid){
   if(!youMk){ showStatus('GPS not active','err'); return; }
   const f=features.find(x=>x.id===fid);
   if(!f || f.geometryType!=='point') return;
-  const ll=youMk.getLatLng(); f.coords=[ll.lat,ll.lng];
-  saveData(); renderAll();
-  showStatus('Snapped to GPS ✓','ok',2000);
+  collectBestFix(function(best){
+    const p=youMk.getLatLng();
+    f.coords = best ? [best.lat,best.lng] : [p.lat,p.lng];
+    saveData(); renderAll();
+    const accTxt = best ? ' (±'+Math.round(best.acc)+'m)' : '';
+    showStatus('Snapped to GPS ✓'+accTxt,'ok',2500);
+  });
 }
 
 /* ════════════════════════════════════════════════════════════
