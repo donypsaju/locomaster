@@ -29,10 +29,10 @@
   --s1:#0a0a0d;
   --s2:#131318;
   --s3:#1c1c24;
-  --line:rgba(255,255,255,.08);
-  --line2:rgba(255,255,255,.16);
+  --line:rgba(255,255,255,.12);
+  --line2:rgba(255,255,255,.25);
   --ink:#f5f5f7;
-  --ink2:#9a9aa8;
+  --ink2:#b5b5c6;
   --ink3:#57576a;
   --signal:#5b7cfa;
   --signal-dim:rgba(91,124,250,.16);
@@ -97,7 +97,7 @@ input,select{font-family:inherit}
 #gdot.poor{background:var(--danger)}
 #gdot.refining{background:var(--data);animation:blink .7s infinite}
 
-/* ── REMINDER BANNER (flows in shell, no z-index needed) ── */
+/* ── REMINDER BANNER ── */
 #reminder-banner{
   flex-shrink:0;max-height:0;overflow:hidden;transition:max-height .25s ease;
   background:var(--warn-dim);border-bottom:1px solid #f5a62340;
@@ -122,23 +122,24 @@ input,select{font-family:inherit}
 .leaflet-popup-content-wrapper{background:var(--s3)!important;border:1px solid var(--line2)!important;border-radius:12px!important;color:var(--ink)!important;box-shadow:0 8px 32px rgba(0,0,0,.6)!important}
 .leaflet-popup-tip{background:var(--s3)!important}
 .leaflet-popup-content{margin:11px 13px!important;font-family:var(--font-ui)!important;font-size:12px!important}
-.leaflet-bar a{background:var(--s2)!important;color:var(--ink)!important;border-color:var(--line2)!important;width:34px!important;height:34px!important;line-height:34px!important}
+.leaflet-bar a{background:var(--s2)!important;color:var(--ink)!important;border-color:var(--line2)!important;width:44px!important;height:44px!important;line-height:44px!important;font-size:18px!important}
 .leaflet-bar a:hover{background:var(--s3)!important}
 .leaflet-control-zoom{top:8px!important}
 .map-ctrl-btn{
   background:var(--s2)!important;border:1px solid var(--line2)!important;border-radius:8px!important;
-  width:34px!important;height:34px!important;display:flex;align-items:center;justify-content:center;
+  width:44px!important;height:44px!important;display:flex;align-items:center;justify-content:center;
   cursor:pointer;transition:.15s;color:var(--ink2);margin-top:5px;box-shadow:0 1px 5px rgba(0,0,0,.4);
+  font-size:20px;
 }
 .map-ctrl-btn:hover{background:var(--s3)!important;color:var(--signal)}
 .map-ctrl-btn.active-state{color:var(--data);border-color:var(--data)!important}
 .map-label{background:transparent!important;border:none!important;box-shadow:none!important;font-weight:700;font-size:10.5px;color:#fff;text-shadow:0 0 3px #000,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;white-space:nowrap}
 
-/* Left floating cluster: search + walk badge */
+/* Left floating cluster */
 #map-left-cluster{position:absolute;top:10px;left:10px;z-index:240;display:flex;flex-direction:column;gap:8px;max-width:min(250px,62vw)}
 #map-search-toggle{
-  width:36px;height:36px;border-radius:50%;background:var(--s2);border:1px solid var(--line2);
-  color:var(--ink2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;
+  width:44px;height:44px;border-radius:50%;background:var(--s2);border:1px solid var(--line2);
+  color:var(--ink2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;
   box-shadow:0 2px 10px rgba(0,0,0,.4);
 }
 #map-search-panel{display:none;background:var(--s2);border:1px solid var(--line2);border-radius:var(--r-md);overflow:hidden;margin-top:6px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
@@ -146,7 +147,7 @@ input,select{font-family:inherit}
 #searchbox{display:flex;align-items:center;border-bottom:1px solid var(--line)}
 #searchbox input{flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-size:12px;padding:9px 4px 9px 11px}
 #searchbox input::placeholder{color:var(--ink3)}
-#searchbox button{background:transparent;border:none;color:var(--ink3);padding:8px;cursor:pointer;display:flex;align-items:center}
+#searchbox button{background:transparent;border:none;color:var(--ink3);padding:8px;cursor:pointer;display:flex;align-items:center;font-size:18px}
 #searchbox button:hover{color:var(--signal)}
 #suggestions{list-style:none;max-height:200px;overflow-y:auto}
 .sug-item{padding:8px 11px;font-size:10px;color:var(--ink2);cursor:pointer;border-top:1px solid var(--line)}
@@ -163,21 +164,21 @@ input,select{font-family:inherit}
 
 #mark-here-btn{
   display:none;align-items:center;gap:7px;background:var(--signal);border:none;
-  border-radius:20px;padding:8px 13px 8px 11px;font-size:11px;font-weight:700;color:#fff;
+  border-radius:20px;padding:10px 13px 10px 11px;font-size:12px;font-weight:700;color:#fff;
   cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.4);align-self:flex-start;
 }
 #mark-here-btn:active{transform:scale(.96)}
-#mark-here-btn i{font-size:15px}
+#mark-here-btn i{font-size:18px}
 
-/* Mode pill (top-center, only while drawing) */
+/* Mode pill */
 #mode-pill{
   position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:245;
   background:var(--s2);border:1px solid var(--signal);border-radius:20px;
-  padding:7px 16px;font-size:11px;font-weight:600;color:var(--signal);display:none;
+  padding:7px 16px;font-size:12px;font-weight:600;color:var(--signal);display:none;
   align-items:center;gap:7px;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.5);cursor:pointer;
 }
 #mode-pill.on{display:flex}
-#mode-pill i{font-size:14px}
+#mode-pill i{font-size:16px}
 
 /* Status toast */
 #status{
@@ -209,17 +210,17 @@ input,select{font-family:inherit}
   display:none;align-items:center;gap:10px;white-space:nowrap;
 }
 #bnd-edit-bar.on{display:flex}
-.bebtn{background:var(--signal);border:none;color:#fff;border-radius:7px;padding:6px 11px;font-size:10.5px;cursor:pointer;font-weight:600}
+.bebtn{background:var(--signal);border:none;color:#fff;border-radius:7px;padding:8px 12px;font-size:11px;cursor:pointer;font-weight:600}
 .bebtn.danger{background:var(--danger)}
 
 /* Map utility row (Undo / Focus / Print) */
 #map-util-row{
-  position:absolute;bottom:calc(var(--tbh)+12px);left:10px;z-index:240;
-  display:flex;flex-direction:column;gap:8px;
+  position:absolute;top:10px;right:50px;z-index:240;
+  display:flex;flex-direction:row;gap:8px;
 }
 .util-btn{
-  width:42px;height:42px;border-radius:50%;background:var(--s2);border:1px solid var(--line2);
-  color:var(--ink2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:17px;
+  width:44px;height:44px;border-radius:50%;background:var(--s2);border:1px solid var(--line2);
+  color:var(--ink2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;
   box-shadow:0 2px 10px rgba(0,0,0,.4);
 }
 .util-btn:active{transform:scale(.93);background:var(--s3)}
@@ -231,10 +232,10 @@ input,select{font-family:inherit}
 #fab-stack.open{opacity:1;pointer-events:auto;transform:translateY(0)}
 .fab-item{
   display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--line2);
-  border-radius:24px;padding:9px 14px 9px 9px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5);
+  border-radius:28px;padding:10px 16px 10px 10px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.8);
 }
-.fab-item i{width:28px;height:28px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--ink2)}
-.fab-item span{font-size:11.5px;font-weight:600;color:var(--ink2)}
+.fab-item i{width:32px;height:32px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--ink2)}
+.fab-item span{font-size:13px;font-weight:600;color:var(--ink2);letter-spacing:0.02em}
 .fab-item.sel{border-color:var(--signal)}
 .fab-item.sel i{background:var(--signal-dim);color:var(--signal)}
 .fab-item.sel span{color:var(--signal)}
@@ -250,8 +251,8 @@ input,select{font-family:inherit}
 .qm-row.on .qm-knob{transform:translateX(15px);background:var(--signal)}
 .qm-row.on span{color:var(--signal)}
 #fab-main{
-  width:56px;height:56px;border-radius:50%;background:var(--signal);border:none;
-  display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;cursor:pointer;
+  width:60px;height:60px;border-radius:50%;background:var(--signal);border:none;
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:26px;cursor:pointer;
   box-shadow:0 6px 20px rgba(91,124,250,.4);transition:transform .15s ease,background .15s ease;
 }
 #fab-main:active{transform:scale(.92)}
@@ -286,11 +287,11 @@ input,select{font-family:inherit}
   padding-bottom:env(safe-area-inset-bottom,0px);z-index:400;
 }
 .tabbtn{
-  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-  padding:9px 2px 8px;cursor:pointer;color:var(--ink3);position:relative;background:none;border:none;
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  padding:10px 2px;cursor:pointer;color:var(--ink3);position:relative;background:none;border:none;
 }
-.tabbtn i{font-size:21px}
-.tabbtn span{font-size:9.5px;font-weight:600;letter-spacing:.01em}
+.tabbtn i{font-size:24px}
+.tabbtn span{font-size:10.5px;font-weight:600;letter-spacing:.01em}
 .tabbtn.active{color:var(--signal)}
 .tab-badge{position:absolute;top:6px;right:calc(50% - 17px);width:8px;height:8px;border-radius:50%;background:var(--warn);border:1.5px solid var(--s1);display:none}
 .tab-badge.show{display:block}
@@ -315,8 +316,8 @@ input,select{font-family:inherit}
 .tab-search input::placeholder{color:var(--ink3)}
 .chip-row{display:flex;gap:7px;flex-wrap:wrap}
 .chip{
-  background:var(--s2);border:1px solid var(--line2);border-radius:18px;padding:6px 13px;
-  font-size:10.5px;font-weight:600;color:var(--ink2);cursor:pointer;white-space:nowrap;
+  background:var(--s2);border:1px solid var(--line2);border-radius:18px;padding:8px 14px;
+  font-size:11.5px;font-weight:600;color:var(--ink2);cursor:pointer;white-space:nowrap;
 }
 .chip.active{background:var(--signal-dim);border-color:var(--signal);color:var(--signal)}
 .list-total{font-size:10px;color:var(--ink3);margin:10px 2px 2px;font-family:var(--font-mono)}
@@ -328,8 +329,8 @@ input,select{font-family:inherit}
 }
 .brow-main{flex:1;display:flex;align-items:center;gap:11px;padding:11px 12px;cursor:pointer;min-width:0}
 .brow-icon{
-  width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
-  font-size:11px;font-weight:700;color:#fff;
+  width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;color:#fff;
 }
 .glyph-pucca{width:14px;height:14px;border:2px solid #000;background:#fff}
 .glyph-kutcha{width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:13px solid #fff}
@@ -341,8 +342,8 @@ input,select{font-family:inherit}
 .s2-dot.partial{background:var(--warn)}
 .s2-dot.pending{background:var(--ink3)}
 .brow-edit,.brow-s2{
-  width:42px;align-self:stretch;display:flex;align-items:center;justify-content:center;
-  background:transparent;border:none;border-left:1px solid var(--line);color:var(--ink3);font-size:15px;cursor:pointer;
+  width:44px;align-self:stretch;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:none;border-left:1px solid var(--line);color:var(--ink3);font-size:18px;cursor:pointer;
 }
 .brow-edit:active,.brow-s2:active{background:var(--s2);color:var(--signal)}
 .s2row{padding:11px 12px;display:flex;align-items:center;gap:11px;cursor:pointer}
@@ -395,10 +396,10 @@ input,select{font-family:inherit}
 
 .bk-btn{
   width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
-  padding:13px;border-radius:var(--r-md);border:1px solid var(--line2);background:var(--s1);
-  color:var(--ink);font-size:13px;font-weight:700;cursor:pointer;margin-bottom:9px;
+  padding:14px;border-radius:var(--r-md);border:1px solid var(--line2);background:var(--s1);
+  color:var(--ink);font-size:14px;font-weight:700;cursor:pointer;margin-bottom:9px;
 }
-.bk-btn i{font-size:16px}
+.bk-btn i{font-size:18px}
 .bk-btn.pr{background:var(--signal);border-color:var(--signal);color:#fff}
 .bk-btn.outline{background:transparent}
 .bk-btn:active{opacity:.75}
@@ -427,36 +428,36 @@ input,select{font-family:inherit}
   -webkit-overflow-scrolling:touch;
 }
 .mdragger{width:38px;height:4px;background:var(--line2);border-radius:2px;margin:0 auto 14px}
-.sheet h3{font-size:14.5px;font-weight:700;margin-bottom:15px;display:flex;align-items:center;gap:7px}
-.fg{margin-bottom:11px}
-.fl{font-size:10px;color:var(--ink2);margin-bottom:5px;display:block;font-weight:600;letter-spacing:.01em}
+.sheet h3{font-size:15px;font-weight:700;margin-bottom:15px;display:flex;align-items:center;gap:7px}
+.fg{margin-bottom:14px}
+.fl{font-size:11px;color:var(--ink2);margin-bottom:6px;display:block;font-weight:600;letter-spacing:.01em}
 .fi{
   width:100%;background:var(--s3);border:1px solid var(--line2);border-radius:10px;
-  padding:10px 12px;color:var(--ink);font-size:13.5px;outline:none;
+  padding:12px 14px;color:var(--ink);font-size:14px;outline:none;
   font-family:var(--font-ui);-webkit-appearance:none;transition:.15s;
 }
 .fi:focus{border-color:var(--signal)}
 .fi option{background:var(--s3)}
-.mbtns{display:flex;gap:8px;margin-top:15px}
-.mbtn{flex:1;padding:12px;border-radius:11px;border:1px solid var(--line2);background:var(--s3);color:var(--ink);font-size:13.5px;cursor:pointer;font-weight:600;-webkit-appearance:none;transition:.1s}
+.mbtns{display:flex;gap:8px;margin-top:18px}
+.mbtn{flex:1;padding:14px;border-radius:11px;border:1px solid var(--line2);background:var(--s3);color:var(--ink);font-size:14px;cursor:pointer;font-weight:600;-webkit-appearance:none;transition:.1s}
 .mbtn:active{opacity:.7}
 .mbtn.pr{background:var(--signal);border-color:var(--signal);color:#fff}
 
 .seg-row{display:flex;background:var(--s3);border:1px solid var(--line2);border-radius:11px;padding:3px;gap:3px;box-shadow:0 2px 10px rgba(0,0,0,.35)}
-.seg{flex:1;padding:9px 6px;border:none;background:transparent;border-radius:8px;color:var(--ink2);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
+.seg{flex:1;padding:10px 8px;border:none;background:transparent;border-radius:8px;color:var(--ink2);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 .seg.active{background:var(--signal);color:#fff}
-.seg-icon{flex:0 0 auto;display:flex;align-items:center;justify-content:center;padding:9px 11px;font-size:14px;border-left:1px solid var(--line)}
+.seg-icon{flex:0 0 auto;display:flex;align-items:center;justify-content:center;padding:10px 12px;font-size:16px;border-left:1px solid var(--line)}
 
 .import-summary{background:var(--s3);border-radius:10px;padding:13px;font-size:12px;color:var(--ink2);line-height:1.7;margin-bottom:6px}
 .import-summary .im-warn{color:var(--warn)}
 
 /* ── EDIT POPUP (drag confirm) ── */
-.edit-popup{font-size:11px}
-.edit-popup b{font-size:12px;display:block;margin-bottom:6px}
-.edit-popup .ep-row{display:flex;gap:5px;margin-top:6px}
+.edit-popup{font-size:12px}
+.edit-popup b{font-size:13px;display:block;margin-bottom:6px}
+.edit-popup .ep-row{display:flex;gap:5px;margin-top:8px}
 .ep-btn{
-  flex:1;padding:6px 4px;border-radius:7px;border:1px solid var(--line2);
-  background:var(--s3);color:var(--ink);font-size:10px;cursor:pointer;
+  flex:1;padding:8px 6px;border-radius:7px;border:1px solid var(--line2);
+  background:var(--s3);color:var(--ink);font-size:11px;cursor:pointer;
   display:flex;align-items:center;gap:4px;justify-content:center;
 }
 .ep-btn.pr{background:var(--signal);border-color:var(--signal);color:#fff}
@@ -464,26 +465,26 @@ input,select{font-family:inherit}
 /* ── CONTEXT MENU ── */
 #ctx{
   position:absolute;z-index:500;background:var(--s3);border:1px solid var(--line2);
-  border-radius:13px;padding:4px;min-width:178px;display:none;
-  box-shadow:0 10px 30px rgba(0,0,0,.55);
+  border-radius:13px;padding:6px;min-width:188px;display:none;
+  box-shadow:0 10px 30px rgba(0,0,0,.65);
 }
 #ctx.open{display:block}
-.ci{padding:10px 11px;border-radius:9px;font-size:11.5px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--ink2)}
+.ci{padding:12px 14px;border-radius:9px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:10px;color:var(--ink2)}
 .ci:active{background:var(--s2);color:var(--ink)}
-.ci i{font-size:15px;color:var(--ink3)}
+.ci i{font-size:18px;color:var(--ink3)}
 .ci.d:active{color:var(--danger)}
-.csep{height:1px;background:var(--line);margin:3px 0}
+.csep{height:1px;background:var(--line);margin:4px 0}
 
 /* ── UNDO TOAST ── */
 #undo-bar{
   position:absolute;bottom:calc(var(--tbh)+12px);left:50%;transform:translateX(-50%);
   background:var(--s2);border:1px solid var(--line2);border-radius:11px;
-  padding:9px 14px;font-size:11px;z-index:450;display:none;
-  align-items:center;gap:10px;box-shadow:0 4px 16px rgba(0,0,0,.4);
+  padding:10px 16px;font-size:12px;z-index:450;display:none;
+  align-items:center;gap:12px;box-shadow:0 4px 16px rgba(0,0,0,.4);
 }
 #undo-bar.on{display:flex}
 #undo-bar b{color:var(--ink)}
-.ubtn{background:var(--signal);border:none;color:#fff;border-radius:7px;padding:6px 11px;font-size:10px;cursor:pointer;font-weight:700}
+.ubtn{background:var(--signal);border:none;color:#fff;border-radius:7px;padding:8px 14px;font-size:11px;cursor:pointer;font-weight:700}
 
 /* ── CENSUS SHAPES (map markers) ── */
 .census-wrap{display:flex;align-items:center;justify-content:center;position:relative}
@@ -499,8 +500,7 @@ input,select{font-family:inherit}
 .sh-drag-ring{position:absolute;inset:-6px;border-radius:50%;border:2px dashed var(--warn);animation:rotatering 2s linear infinite}
 .sh-arrow-sel-ring{position:absolute;inset:-5px;border-radius:50%;border:2px solid var(--warn);box-shadow:0 0 8px var(--warn)}
 
-/* ── ANIMATIONS (deliberately minimal: tab fade, fab expand, banner slide,
-     status pulse, locate-flash — everything else is static) ── */
+/* ── ANIMATIONS ── */
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 @keyframes gpspulse{0%,100%{box-shadow:0 0 0 4px rgba(91,124,250,.3)}50%{box-shadow:0 0 0 8px rgba(91,124,250,.1)}}
 @keyframes rotatering{to{transform:rotate(360deg)}}
@@ -523,7 +523,6 @@ input,select{font-family:inherit}
 <body>
 <div id="app-shell">
 
-  <!-- ═══ HEADER ═══ -->
   <div id="header">
     <div class="logo">
       <i class="ti ti-layout-grid"></i>
@@ -537,7 +536,6 @@ input,select{font-family:inherit}
     </div>
   </div>
 
-  <!-- ═══ DAILY BACKUP REMINDER BANNER ═══ -->
   <div id="reminder-banner">
     <div id="reminder-inner">
       <i class="ti ti-alert-circle"></i>
@@ -547,10 +545,8 @@ input,select{font-family:inherit}
     </div>
   </div>
 
-  <!-- ═══ SCREENS ═══ -->
   <div id="screens">
 
-    <!-- ─── MAP SCREEN ─── -->
     <div id="screen-map" class="screen active">
       <div id="map"></div>
 
@@ -576,7 +572,7 @@ input,select{font-family:inherit}
         </button>
         <div id="walk-distance-badge">
           <i class="ti ti-route"></i><span>0 m</span>
-          <button onclick="clearWalkTrail()" title="Clear trail"><i class="ti ti-x" style="font-size:12px"></i></button>
+          <button onclick="clearWalkTrail()" title="Clear trail"><i class="ti ti-x" style="font-size:14px"></i></button>
         </div>
       </div>
 
@@ -608,14 +604,14 @@ input,select{font-family:inherit}
           <input type="range" id="img-rotate" min="-180" max="180" step="1" value="0" oninput="setOvRotation(this.value)"/></div>
         <div class="geo-btns">
           <button class="gbtn" onclick="removeOverlayConfirm()">Remove</button>
-          <button class="gbtn pr" onclick="lockOverlay()"><i class="ti ti-lock" style="font-size:12px;margin-right:4px"></i>Lock &amp; Draw</button>
+          <button class="gbtn pr" onclick="lockOverlay()"><i class="ti ti-lock" style="font-size:14px;margin-right:4px"></i>Lock &amp; Draw</button>
         </div>
       </div>
 
       <div id="map-util-row">
-        <div class="util-btn" onclick="undoLast()" title="Undo last [Z]"><i class="ti ti-arrow-back-up"></i></div>
-        <div class="util-btn" onclick="fitToArea()" title="Fit to area"><i class="ti ti-arrows-maximize"></i></div>
-        <div class="util-btn" onclick="printMap()" title="Print map"><i class="ti ti-printer"></i></div>
+        <div class="util-btn" onclick="undoLast(); showStatus('Undoing last action', 'warn', 1500)" title="Undo last [Z]"><i class="ti ti-arrow-back-up"></i></div>
+        <div class="util-btn" onclick="fitToArea(); showStatus('Refocusing map', 'ok', 1500)" title="Fit to area"><i class="ti ti-arrows-maximize"></i></div>
+        <div class="util-btn" onclick="printMap(); showStatus('Printing map', 'ok', 1500)" title="Print map"><i class="ti ti-printer"></i></div>
       </div>
 
       <div id="fab-cluster">
@@ -633,7 +629,6 @@ input,select{font-family:inherit}
       </div>
     </div>
 
-    <!-- ─── BUILDINGS SCREEN ─── -->
     <div id="screen-buildings" class="screen">
       <div class="screen-panel">
         <div class="eyebrow">Stage 1 · Building Register</div>
@@ -651,7 +646,6 @@ input,select{font-family:inherit}
       </div>
     </div>
 
-    <!-- ─── STAGE 2 SCREEN ─── -->
     <div id="screen-stage2" class="screen">
       <div class="screen-panel">
         <div class="eyebrow">Stage 2 · Household Data Entry</div>
@@ -672,7 +666,6 @@ input,select{font-family:inherit}
       </div>
     </div>
 
-    <!-- ─── STATS SCREEN ─── -->
     <div id="screen-stats" class="screen">
       <div class="screen-panel">
         <div class="eyebrow">Block Summary</div>
@@ -680,7 +673,6 @@ input,select{font-family:inherit}
       </div>
     </div>
 
-    <!-- ─── BACKUP SCREEN ─── -->
     <div id="screen-backup" class="screen">
       <div class="screen-panel">
         <div class="eyebrow">Data &amp; Backup</div>
@@ -713,7 +705,6 @@ input,select{font-family:inherit}
 
   </div>
 
-  <!-- ═══ BOTTOM TAB BAR ═══ -->
   <div id="tabbar">
     <button class="tabbtn active" id="tabbtn-map" onclick="switchTab('map')"><i class="ti ti-map"></i><span>Map</span></button>
     <button class="tabbtn" id="tabbtn-buildings" onclick="switchTab('buildings')"><i class="ti ti-home"></i><span>Buildings</span></button>
@@ -727,7 +718,6 @@ input,select{font-family:inherit}
 
 </div>
 
-<!-- ═══ CONTEXT MENU ═══ -->
 <div id="ctx">
   <div class="ci" id="ctx-edit" onclick="ctxEdit()"><i class="ti ti-pencil"></i>Edit details</div>
   <div class="ci" id="ctx-drag" onclick="ctxStartDrag()"><i class="ti ti-arrows-move"></i>Move / reposition</div>
@@ -740,17 +730,14 @@ input,select{font-family:inherit}
   <div class="ci" onclick="closeCtx()"><i class="ti ti-x"></i>Cancel</div>
 </div>
 
-<!-- ═══ UNDO BAR ═══ -->
 <div id="undo-bar">
   <span><b id="undo-msg">Deleted feature</b></span>
   <button class="ubtn" onclick="undoDelete()">↩ Undo</button>
   <button class="ubtn" style="background:var(--ink3)" onclick="dismissUndo()">✕</button>
 </div>
 
-<!-- ═══ Hidden file input for reference-photo loading ═══ -->
 <input type="file" id="fileup" accept="image/*" style="display:none" onchange="loadImageOverlay(event)"/>
 
-<!-- ═══ FEATURE MODAL ═══ -->
 <div id="moverlay" class="ovl">
   <div id="modal" class="sheet">
     <div class="mdragger"></div>
@@ -822,8 +809,8 @@ input,select{font-family:inherit}
         <input type="text" class="fi" id="s2-remarks" placeholder="Any remark…" autocomplete="off"/>
       </div>
       <div class="fg" style="display:flex;align-items:center;gap:9px">
-        <input type="checkbox" id="s2-complete" style="accent-color:var(--ok);width:18px;height:18px"/>
-        <label for="s2-complete" style="font-size:12px;color:var(--ink)">Mark Stage 2 Completed</label>
+        <input type="checkbox" id="s2-complete" style="accent-color:var(--ok);width:20px;height:20px"/>
+        <label for="s2-complete" style="font-size:14px;color:var(--ink)">Mark Stage 2 Completed</label>
       </div>
     </div>
 
@@ -858,19 +845,18 @@ input,select{font-family:inherit}
 
     <div class="mbtns">
       <button class="mbtn" onclick="closeModal()">Cancel</button>
-      <button class="mbtn pr" onclick="saveFeature()"><i class="ti ti-check" style="font-size:13px;margin-right:4px"></i>Save</button>
+      <button class="mbtn pr" onclick="saveFeature()"><i class="ti ti-check" style="font-size:15px;margin-right:4px"></i>Save</button>
     </div>
   </div>
 </div>
 
-<!-- ═══ IMPORT CONFIRM MODAL ═══ -->
 <div id="import-overlay" class="ovl">
   <div id="import-modal" class="sheet">
     <div class="mdragger"></div>
     <h3><i class="ti ti-upload" style="color:var(--signal)"></i>Restore Backup</h3>
     <div id="import-summary" class="import-summary"></div>
-    <div class="mbtns" style="flex-direction:column;gap:9px">
-      <button class="mbtn pr" onclick="applyImport('merge')"><i class="ti ti-check" style="font-size:13px;margin-right:4px"></i>Merge with current data</button>
+    <div class="mbtns" style="flex-direction:column;gap:12px">
+      <button class="mbtn pr" onclick="applyImport('merge')"><i class="ti ti-check" style="font-size:15px;margin-right:4px"></i>Merge with current data</button>
       <button class="mbtn" style="color:var(--danger);border-color:#fb457050" onclick="applyImport('replace')">Replace all current data</button>
       <button class="mbtn" onclick="closeImportModal()">Cancel</button>
     </div>
@@ -937,7 +923,7 @@ const CompassControl = L.Control.extend({
   onAdd:function(m){
     const c = L.DomUtil.create('div','map-ctrl-btn');
     c.id = 'compass-ctrl-btn';
-    c.innerHTML = '<i class="ti ti-arrow-north" style="font-size:16px"></i>';
+    c.innerHTML = '<i class="ti ti-arrow-north"></i>';
     c.title = 'Reset north';
     L.DomEvent.on(c,'click',function(e){
       L.DomEvent.stopPropagation(e); L.DomEvent.preventDefault(e);
@@ -954,7 +940,7 @@ const WalkControl = L.Control.extend({
   onAdd:function(){
     const c = L.DomUtil.create('div','map-ctrl-btn');
     c.id = 'walk-ctrl-btn';
-    c.innerHTML = '<i class="ti ti-route" style="font-size:16px"></i>';
+    c.innerHTML = '<i class="ti ti-route"></i>';
     c.title = 'Track my walk';
     L.DomEvent.on(c,'click',function(e){
       L.DomEvent.stopPropagation(e); L.DomEvent.preventDefault(e);
@@ -966,10 +952,6 @@ const WalkControl = L.Control.extend({
 new WalkControl().addTo(map);
 
 function updateCompassVisibility(){
-  // FIX: query the compass button by its own unique id, not the shared
-  // .map-ctrl-btn class — that class is also used by the walk-track
-  // button, and querySelector() would only ever touch whichever one
-  // happens to be first in the DOM, silently hiding the wrong control.
   const compass = document.getElementById('compass-ctrl-btn');
   if(compass) compass.style.display = (map.getBearing && map.getBearing()!==0) ? 'flex' : 'none';
 }
@@ -1059,11 +1041,7 @@ let fabOpen=false;
 let gpsOn=false, followMode=false;
 let lastGoodAcc=null;
 
-// GPS best-fix collector: averages several consecutive readings (weighted
-// by accuracy) for the two actions where placement precision matters most —
-// Mark Here and Snap to GPS — instead of trusting a single noisy sample.
 let bestFixCollecting=false, bestFixSamples=[], bestFixResolve=null, bestFixTimer=null;
-
 let quickMarkOn = (localStorage.getItem('census-quickmark')==='1');
 let qmLast = {type:'pucca-house', subtype:'res', censusCount:1};
 
@@ -1202,24 +1180,13 @@ function startGPS(){
   watchId=navigator.geolocation.watchPosition(p=>{
     const {latitude:lat, longitude:lng, accuracy:acc} = p.coords;
 
-    // Feed every raw reading to the best-fix collector (used by Mark Here /
-    // Snap to GPS) — inverse-variance weighting there naturally discounts
-    // noisy samples, so nothing needs filtering before this point.
     feedBestFixSample(lat,lng,acc);
 
-    // Three-tier accuracy feedback instead of a binary lock/poor split —
-    // more honest about what "an OK fix" looks like versus a tight one.
     if(!bestFixCollecting) dot.className = acc<=15 ? 'lock' : (acc<=30 ? 'fair' : 'poor');
     lbl.textContent = '±'+Math.round(acc)+'m';
 
     const ll=[lat,lng];
 
-    // Outlier rejection: a reading that's suddenly much worse than our
-    // recent accuracy AND absolutely poor is very likely a multipath spike
-    // (signal bounced off a building or tree canopy) rather than real
-    // movement. Skip moving the live marker for just that one sample so the
-    // dot doesn't visibly jump — the accuracy label above still reports it
-    // honestly, nothing is hidden, we just don't act on it spatially.
     const isOutlier = lastGoodAcc!==null && acc > lastGoodAcc*4 && acc > 40 && !!youMk;
     if(!isOutlier) lastGoodAcc = acc;
 
@@ -1270,15 +1237,7 @@ function gpsErrMsg(err){
   return 'GPS error: '+(err.message||'unknown error');
 }
 
-/* ── GPS best-fix averaging ──
-   A single GPS reading can be noisy by tens of metres. For the two actions
-   where placement precision actually matters — Mark Here and Snap to GPS —
-   this collects several consecutive readings (already streaming in via
-   watchPosition) for up to a few seconds, combines them with inverse-
-   variance weighting (each sample trusted in proportion to 1/accuracy²,
-   the standard way to merge noisy measurements of the same fixed point),
-   and exits early the moment two genuinely good readings come in so a
-   strong fix is never made to wait around for no reason. */
+/* ── GPS best-fix averaging ── */
 function collectBestFix(onDone){
   if(!gpsOn || !youMk){ showStatus('Turn on GPS first','warn'); return; }
   if(bestFixCollecting) return;
@@ -1376,14 +1335,13 @@ function clearWalkTrail(){
 }
 
 /* ════════════════════════════════════════════════════════════
-   MODE MANAGEMENT — selecting a tool never has side effects;
-   the GPS "Mark Here" shortcut lives separately (markHereGPS)
+   MODE MANAGEMENT
    ════════════════════════════════════════════════════════════ */
 const MODES = {
-  view:     {icon:'ti-hand-stop',  label:'Pan'},
-  boundary: {icon:'ti-shape',      label:'Draw Boundary'},
-  point:    {icon:'ti-home-plus',  label:'Mark Building'},
-  line:     {icon:'ti-road',       label:'Draw Road / River'},
+  view:     {icon:'ti-hand-stop',      label:'Pan'},
+  boundary: {icon:'ti-shape',          label:'Draw Boundary'},
+  point:    {icon:'ti-home-plus',      label:'Mark Building'},
+  line:     {icon:'ti-road',           label:'Draw Road / River'},
   arrow:    {icon:'ti-arrow-move-right', label:'Set Enumeration Order'}
 };
 
@@ -1694,8 +1652,7 @@ function ctxStage2(){ const fid=ctxFid; closeCtx(); if(fid!=null) openStage2(fid
 map.on('click', closeCtx);
 
 /* ════════════════════════════════════════════════════════════
-   MODAL — point / line / boundary / stage2
-   Stage2 save NEVER touches coords or geometryType.
+   MODAL
    ════════════════════════════════════════════════════════════ */
 function onFeatureTypeChange(){
   const type=document.getElementById('pt-type').value;
@@ -1783,7 +1740,6 @@ function saveFeature(){
     feature.name=document.getElementById('ln-name').value.trim();
 
   } else if(type==='stage2'){
-    // Intentionally does not touch feature.coords or feature.geometryType.
     feature.stage2Data={
       head:document.getElementById('s2-head').value.trim(),
       members:parseInt(document.getElementById('s2-members').value)||0,
@@ -2182,7 +2138,6 @@ function fitToArea(){
   }
   if(!bounds.isValid()){ showStatus('No features yet','warn'); return; }
   map.fitBounds(bounds,{padding:[24,24],maxZoom:20});
-  showStatus('Area focused ✓','ok',2000);
 }
 
 /* ════════════════════════════════════════════════════════════
