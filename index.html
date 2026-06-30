@@ -2,408 +2,720 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="theme-color" content="#1a1a2e"/>
-<title>Census Layout Mapper</title>
+<meta name="theme-color" content="#000000"/>
+<title>Census Layout Mapper – Field Edition</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- Rotation plugin (required for map.setBearing / getBearing) -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.1.1/dist/leaflet.rotate.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
 <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
 <style>
-/* ── RESET ── */
+/* ════════════════════════════════════════════════════════════
+   RESET & DESIGN TOKENS
+   OLED true-black field-instrument palette. Indigo = action,
+   teal = data/readouts, amber = caution, green = complete,
+   red-pink = destructive. Monospace face for every numeric
+   readout (stats, coords, timestamps) — a field instrument
+   shows numbers in a fixed-width face; everything else uses
+   the system UI face.
+   ════════════════════════════════════════════════════════════ */
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
-  --bg:#0f0f1a;--surface:#16162a;--card:#1e1e35;--card2:#252540;
-  --border:rgba(255,255,255,.09);--border2:rgba(255,255,255,.15);
-  --accent:#3b82f6;--accent2:#2563eb;--glow:rgba(59,130,246,.18);
-  --green:#10b981;--red:#ef4444;--amber:#f59e0b;--cyan:#06b6d4;
-  --text:#f0f0f8;--text2:#a8a8c0;--text3:#5c5c78;
-  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-  --hh:50px;--tbh:68px;
+  --bg:#000000;
+  --s1:#0a0a0d;
+  --s2:#131318;
+  --s3:#1c1c24;
+  --line:rgba(255,255,255,.08);
+  --line2:rgba(255,255,255,.16);
+  --ink:#f5f5f7;
+  --ink2:#9a9aa8;
+  --ink3:#57576a;
+  --signal:#5b7cfa;
+  --signal-dim:rgba(91,124,250,.16);
+  --data:#2dd4c8;
+  --data-dim:rgba(45,212,200,.16);
+  --ok:#34d399;
+  --ok-dim:rgba(52,211,153,.14);
+  --warn:#f5a623;
+  --warn-dim:rgba(245,166,35,.14);
+  --danger:#fb4570;
+  --danger-dim:rgba(251,69,112,.14);
+  --font-ui:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --font-mono:ui-monospace,'SF Mono','Roboto Mono',Menlo,Consolas,monospace;
+  --hh:54px;
+  --tbh:64px;
+  --r-sm:8px;
+  --r-md:13px;
+  --r-lg:20px;
 }
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
-  font-family:var(--font);-webkit-font-smoothing:antialiased;touch-action:manipulation}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+  font-family:var(--font-ui);-webkit-font-smoothing:antialiased;touch-action:manipulation}
+button{font-family:inherit;color:inherit}
+input,select{font-family:inherit}
+::selection{background:var(--signal-dim);color:var(--ink)}
 
-/* ── MAP ── */
-#map{position:absolute;inset:0;z-index:0}
-.leaflet-control-attribution{background:rgba(0,0,0,.75)!important;color:#555!important;font-size:9px!important}
-.leaflet-popup-content-wrapper{background:var(--card)!important;border:1px solid var(--border2)!important;border-radius:12px!important;color:var(--text)!important;box-shadow:0 8px 32px rgba(0,0,0,.5)!important}
-.leaflet-popup-tip{background:var(--card)!important}
-.leaflet-popup-content{margin:11px 13px!important;font-family:var(--font)!important;font-size:12px!important}
-.leaflet-bar a{background:var(--card)!important;color:var(--text)!important;border-color:var(--border2)!important;width:32px!important;height:32px!important;line-height:32px!important}
-.leaflet-bar a:hover{background:var(--card2)!important}
-.leaflet-control-zoom{top:6px!important}
-.map-label{background:transparent!important;border:none!important;box-shadow:none!important;font-weight:700;font-size:11px;color:#fff;text-shadow:0 0 3px #000,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;white-space:nowrap}
+/* ── APP SHELL ── */
+#app-shell{
+  height:100vh;height:100dvh;display:flex;flex-direction:column;
+  position:relative;overflow:hidden;
+}
 
 /* ── HEADER ── */
 #header{
-  position:absolute;top:0;left:0;right:0;height:var(--hh);z-index:200;
-  background:rgba(15,15,26,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:8px;
+  flex-shrink:0;height:var(--hh);padding-top:env(safe-area-inset-top,0px);
+  background:var(--s1);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;padding-left:14px;padding-right:14px;gap:10px;z-index:400;
 }
-.logo{font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;white-space:nowrap}
-.logo i{color:var(--accent);font-size:18px}
-.lbadge{background:var(--glow);border:1px solid var(--accent);color:var(--accent);font-size:9px;padding:1px 6px;border-radius:20px}
+.logo{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px;white-space:nowrap;letter-spacing:-.01em}
+.logo i{color:var(--signal);font-size:18px}
+.logo .lname{display:flex;flex-direction:column;line-height:1.05}
+.logo .lname b{font-size:12.5px}
+.logo .lname small{font-size:8.5px;color:var(--ink3);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 #hsp{flex:1}
+#device-compass{
+  display:flex;align-items:center;justify-content:center;width:26px;height:26px;
+  border-radius:50%;background:var(--s2);border:1px solid var(--line2);flex-shrink:0;position:relative;
+}
+#device-compass .needle{
+  width:2px;height:10px;background:var(--data);border-radius:1px;
+  position:absolute;bottom:50%;left:50%;transform-origin:bottom center;transition:transform .15s linear;
+}
+#gpspill{
+  display:flex;align-items:center;gap:6px;background:var(--s2);border:1px solid var(--line2);
+  border-radius:20px;padding:5px 11px 5px 8px;font-size:10px;color:var(--ink2);white-space:nowrap;
+  cursor:pointer;transition:.15s;font-family:var(--font-mono);
+}
+#gpspill:active{transform:scale(.96)}
+#gdot{width:7px;height:7px;border-radius:50%;background:var(--ink3);flex-shrink:0;transition:all .3s}
+#gdot.lock{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+#gdot.search{background:var(--warn);animation:blink 1s infinite}
+#gdot.poor{background:var(--danger)}
 
-/* Search */
-#search-wrapper{position:relative;margin-right:8px}
-#searchbox{
-  display:flex;align-items:center;background:var(--card);border:1px solid var(--border2);
-  border-radius:20px;overflow:hidden;
+/* ── REMINDER BANNER (flows in shell, no z-index needed) ── */
+#reminder-banner{
+  flex-shrink:0;max-height:0;overflow:hidden;transition:max-height .25s ease;
+  background:var(--warn-dim);border-bottom:1px solid #f5a62340;
 }
-#searchbox input{
-  background:transparent;border:none;outline:none;color:var(--text);font-size:11px;
-  padding:5px 8px;width:120px;font-family:var(--font);
-}
-#searchbox input::placeholder{color:var(--text3)}
-#searchbox button{
-  background:transparent;border:none;color:var(--text3);padding:0 8px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-}
-#searchbox button:hover{color:var(--accent)}
+#reminder-banner.on{max-height:60px}
+#reminder-inner{display:flex;align-items:center;gap:9px;padding:9px 14px;font-size:11.5px;color:var(--warn)}
+#reminder-inner i.ti-alert-circle{font-size:16px;flex-shrink:0}
+#reminder-text{flex:1;line-height:1.3}
+.rbtn{background:var(--warn);color:#1a1200;border:none;border-radius:7px;padding:6px 10px;font-size:10.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.rclose{background:transparent;border:none;color:var(--warn);opacity:.7;padding:4px;cursor:pointer;display:flex}
 
-/* Suggestions */
-#suggestions{
-  position:absolute;top:100%;left:0;right:0;margin-top:4px;
-  background:var(--card2);border:1px solid var(--border2);border-radius:10px;
-  list-style:none;overflow:hidden;z-index:800;display:none;
-  max-height:220px;overflow-y:auto;box-shadow:0 8px 20px rgba(0,0,0,.6);
-}
-#suggestions.on{display:block}
-.sug-item{
-  padding:8px 12px;font-size:10px;color:var(--text2);cursor:pointer;
-  border-bottom:1px solid var(--border);transition:background .1s;
-}
-.sug-item:hover,.sug-item.active{background:var(--card);color:var(--text)}
-.sug-item:last-child{border-bottom:none}
-.sug-name{font-weight:600;color:var(--text);font-size:11px}
-.sug-detail{font-size:9px;color:var(--text3);margin-top:2px}
+/* ── SCREENS ── */
+#screens{flex:1;position:relative;overflow:hidden;background:var(--bg)}
+.screen{position:absolute;inset:0;display:none;flex-direction:column}
+.screen.active{display:flex}
+.screen-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 14px calc(24px + env(safe-area-inset-bottom,0px))}
 
-/* GPS pill */
-#gpspill{display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border2);border-radius:20px;padding:4px 10px;font-size:10px;color:var(--text3);white-space:nowrap;cursor:pointer;transition:.2s}
-#gpspill:hover{border-color:var(--accent)}
-#gdot{width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:all .3s}
-#gdot.lock{background:var(--green);box-shadow:0 0 6px var(--green)}
-#gdot.search{background:var(--amber);animation:blink 1s infinite}
-#gdot.poor{background:var(--red)}
-
-/* Mode badge */
-#modebadge{
-  background:var(--card);border:1px solid var(--border2);border-radius:20px;
-  padding:4px 10px;font-size:10px;color:var(--text2);white-space:nowrap;
-  display:flex;align-items:center;gap:5px;
+/* ── MAP SCREEN ── */
+#screen-map{padding:0}
+#map{position:absolute;inset:0;z-index:0;background:#000}
+.leaflet-control-attribution{background:rgba(0,0,0,.8)!important;color:#555!important;font-size:8.5px!important}
+.leaflet-popup-content-wrapper{background:var(--s3)!important;border:1px solid var(--line2)!important;border-radius:12px!important;color:var(--ink)!important;box-shadow:0 8px 32px rgba(0,0,0,.6)!important}
+.leaflet-popup-tip{background:var(--s3)!important}
+.leaflet-popup-content{margin:11px 13px!important;font-family:var(--font-ui)!important;font-size:12px!important}
+.leaflet-bar a{background:var(--s2)!important;color:var(--ink)!important;border-color:var(--line2)!important;width:34px!important;height:34px!important;line-height:34px!important}
+.leaflet-bar a:hover{background:var(--s3)!important}
+.leaflet-control-zoom{top:8px!important}
+.map-ctrl-btn{
+  background:var(--s2)!important;border:1px solid var(--line2)!important;border-radius:8px!important;
+  width:34px!important;height:34px!important;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:.15s;color:var(--ink2);margin-top:5px;box-shadow:0 1px 5px rgba(0,0,0,.4);
 }
-#modebadge i{font-size:13px}
+.map-ctrl-btn:hover{background:var(--s3)!important;color:var(--signal)}
+.map-ctrl-btn.active-state{color:var(--data);border-color:var(--data)!important}
+.map-label{background:transparent!important;border:none!important;box-shadow:none!important;font-weight:700;font-size:10.5px;color:#fff;text-shadow:0 0 3px #000,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;white-space:nowrap}
 
-/* Map type switcher */
-#maptype{
-  position:absolute;top:calc(var(--hh)+8px);right:10px;z-index:500;
-  display:flex;gap:4px;
+/* Left floating cluster: search + walk badge */
+#map-left-cluster{position:absolute;top:10px;left:10px;z-index:240;display:flex;flex-direction:column;gap:8px;max-width:min(250px,62vw)}
+#map-search-toggle{
+  width:36px;height:36px;border-radius:50%;background:var(--s2);border:1px solid var(--line2);
+  color:var(--ink2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;
+  box-shadow:0 2px 10px rgba(0,0,0,.4);
 }
-.mt{background:var(--card);border:1px solid var(--border2);border-radius:6px;
-  padding:4px 8px;font-size:10px;color:var(--text2);cursor:pointer;transition:.15s;
-  user-select:none;-webkit-user-select:none;
-}
-.mt.active{background:var(--glow);border-color:var(--accent);color:var(--accent)}
+#map-search-panel{display:none;background:var(--s2);border:1px solid var(--line2);border-radius:var(--r-md);overflow:hidden;margin-top:6px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+#map-search-panel.open{display:block}
+#searchbox{display:flex;align-items:center;border-bottom:1px solid var(--line)}
+#searchbox input{flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-size:12px;padding:9px 4px 9px 11px}
+#searchbox input::placeholder{color:var(--ink3)}
+#searchbox button{background:transparent;border:none;color:var(--ink3);padding:8px;cursor:pointer;display:flex;align-items:center}
+#searchbox button:hover{color:var(--signal)}
+#suggestions{list-style:none;max-height:200px;overflow-y:auto}
+.sug-item{padding:8px 11px;font-size:10px;color:var(--ink2);cursor:pointer;border-top:1px solid var(--line)}
+.sug-item:hover,.sug-item.active{background:var(--s3);color:var(--ink)}
+.sug-name{font-weight:600;color:var(--ink);font-size:11px}
+.sug-detail{font-size:9px;color:var(--ink3);margin-top:2px}
 
-/* Compass reset button */
-.leaflet-control-compass{
-  background:var(--card)!important;border:1px solid var(--border2)!important;border-radius:6px!important;
-  width:32px!important;height:32px!important;display:flex;align-items:center;justify-content:center;
-  cursor:pointer;transition:.15s;font-size:18px;color:var(--text2);margin-top:4px;box-shadow:0 1px 5px rgba(0,0,0,.4);
+#walk-distance-badge{
+  display:none;align-items:center;gap:7px;background:var(--data-dim);border:1px solid #2dd4c840;
+  border-radius:20px;padding:6px 6px 6px 11px;font-size:10.5px;color:var(--data);font-family:var(--font-mono);
+  box-shadow:0 2px 10px rgba(0,0,0,.4);
 }
-.leaflet-control-compass:hover{background:var(--card2)!important;color:var(--accent)}
+#walk-distance-badge button{background:transparent;border:none;color:var(--data);opacity:.7;padding:4px;border-radius:50%;display:flex;cursor:pointer}
 
-/* ── STATUS TOAST ── */
+/* Mode pill (top-center, only while drawing) */
+#mode-pill{
+  position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:245;
+  background:var(--s2);border:1px solid var(--signal);border-radius:20px;
+  padding:7px 16px;font-size:11px;font-weight:600;color:var(--signal);display:none;
+  align-items:center;gap:7px;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.5);cursor:pointer;
+}
+#mode-pill.on{display:flex}
+#mode-pill i{font-size:14px}
+
+/* Status toast */
 #status{
-  position:absolute;top:calc(var(--hh)+8px);left:50%;transform:translateX(-50%);
-  background:var(--card);border:1px solid var(--border2);border-radius:20px;
-  padding:6px 14px;font-size:11px;font-weight:600;z-index:300;
-  display:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.4);
-  color:var(--text);align-items:center;gap:6px;
+  position:absolute;top:54px;left:50%;transform:translateX(-50%);
+  background:var(--s2);border:1px solid var(--line2);border-radius:20px;
+  padding:7px 15px;font-size:11px;font-weight:600;z-index:320;
+  display:none;white-space:nowrap;max-width:88vw;overflow:hidden;text-overflow:ellipsis;
+  box-shadow:0 4px 16px rgba(0,0,0,.4);color:var(--ink);align-items:center;gap:6px;
 }
 #status.on{display:flex}
-#status.warn{border-color:#f59e0b55;color:var(--amber)}
-#status.err{border-color:#ef444455;color:var(--red)}
-#status.ok{border-color:#10b98155;color:var(--green)}
+#status.warn{border-color:#f5a62355;color:var(--warn)}
+#status.err{border-color:#fb457055;color:var(--danger)}
+#status.ok{border-color:#34d39955;color:var(--ok)}
 
-/* ── DRAGGABLE MARKER EDIT TOOLTIP ── */
+/* Drag hint */
 #drag-hint{
-  position:absolute;top:calc(var(--hh)+8px);right:10px;z-index:250;
-  background:var(--card);border:1px solid #f59e0b55;border-radius:10px;
-  padding:7px 11px;font-size:10px;color:var(--amber);display:none;
-  align-items:center;gap:6px;line-height:1.4;max-width:200px;
+  position:absolute;top:54px;right:10px;z-index:250;
+  background:var(--s2);border:1px solid #f5a62355;border-radius:11px;
+  padding:8px 11px;font-size:10px;color:var(--warn);display:none;
+  align-items:center;gap:7px;line-height:1.4;max-width:190px;
 }
 #drag-hint.on{display:flex}
 
 /* Boundary edit bar */
 #bnd-edit-bar{
-  position:absolute;bottom:calc(var(--tbh)+8px);left:50%;transform:translateX(-50%);
-  background:var(--card);border:1px solid #f59e0b55;border-radius:10px;
-  padding:6px 14px;z-index:500;font-size:10px;color:var(--amber);
+  position:absolute;bottom:calc(var(--tbh)+12px);left:50%;transform:translateX(-50%);
+  background:var(--s2);border:1px solid #f5a62355;border-radius:11px;
+  padding:7px 14px;z-index:260;font-size:10.5px;color:var(--warn);
   display:none;align-items:center;gap:10px;white-space:nowrap;
 }
 #bnd-edit-bar.on{display:flex}
-.bebtn{background:var(--accent);border:none;color:#fff;border-radius:7px;padding:5px 10px;font-size:10px;cursor:pointer;font-family:var(--font)}
-.bebtn.danger{background:var(--red)}
+.bebtn{background:var(--signal);border:none;color:#fff;border-radius:7px;padding:6px 11px;font-size:10.5px;cursor:pointer;font-weight:600}
+.bebtn.danger{background:var(--danger)}
 
-/* ── EDIT POPUP ── */
-.edit-popup{font-size:11px}
-.edit-popup b{font-size:12px;display:block;margin-bottom:6px}
-.edit-popup .ep-row{display:flex;gap:5px;margin-top:6px}
-.ep-btn{
-  flex:1;padding:5px 4px;border-radius:7px;border:1px solid var(--border2);
-  background:var(--card2);color:var(--text);font-size:10px;cursor:pointer;
-  font-family:var(--font);display:flex;align-items:center;gap:4px;justify-content:center;
-  transition:.1s;
+/* Map utility row (Undo / Focus / Print) */
+#map-util-row{
+  position:absolute;bottom:calc(var(--tbh)+12px);left:10px;z-index:240;
+  display:flex;flex-direction:column;gap:8px;
 }
-.ep-btn:active{opacity:.7}
-.ep-btn.pr{background:var(--accent);border-color:var(--accent2);color:#fff}
-.ep-btn.dr{background:#ef444420;border-color:#ef444450;color:var(--red)}
+.util-btn{
+  width:42px;height:42px;border-radius:50%;background:var(--s2);border:1px solid var(--line2);
+  color:var(--ink2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:17px;
+  box-shadow:0 2px 10px rgba(0,0,0,.4);
+}
+.util-btn:active{transform:scale(.93);background:var(--s3)}
 
-/* ── TOOLBAR ── */
-#toolbar{
-  position:absolute;bottom:0;left:0;right:0;
-  background:rgba(15,15,26,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border-top:1px solid var(--border);z-index:200;
-  padding:8px 10px;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));
+/* FAB cluster */
+#fab-cluster{position:absolute;bottom:calc(var(--tbh)+12px);right:10px;z-index:270;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+#fab-stack{display:flex;flex-direction:column;align-items:flex-end;gap:9px;
+  opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .15s ease,transform .15s ease}
+#fab-stack.open{opacity:1;pointer-events:auto;transform:translateY(0)}
+.fab-item{
+  display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--line2);
+  border-radius:24px;padding:9px 14px 9px 9px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5);
 }
-#tbrow{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;-webkit-overflow-scrolling:touch}
-#tbrow::-webkit-scrollbar{display:none}
-.tb{
-  display:flex;flex-direction:column;align-items:center;gap:2px;
-  background:var(--card);border:1px solid var(--border2);border-radius:11px;
-  padding:7px 9px;min-width:56px;flex-shrink:0;cursor:pointer;
-  transition:.12s;color:var(--text);font-size:9px;white-space:nowrap;
-  user-select:none;-webkit-user-select:none;-webkit-appearance:none;
+.fab-item i{width:28px;height:28px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--ink2)}
+.fab-item span{font-size:11.5px;font-weight:600;color:var(--ink2)}
+.fab-item.sel{border-color:var(--signal)}
+.fab-item.sel i{background:var(--signal-dim);color:var(--signal)}
+.fab-item.sel span{color:var(--signal)}
+.qm-row{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:var(--s2);border:1px solid var(--line2);border-radius:24px;padding:8px 8px 8px 14px;
+  cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5);min-width:168px;
 }
-.tb i{font-size:19px;color:var(--text2)}
-.tb:active,.tb:hover{background:var(--card2)}
-.tb.on{background:var(--glow);border-color:var(--accent)}
-.tb.on i{color:var(--accent)}
-.tb.on-g{background:#10b98118;border-color:#10b98155}
-.tb.on-g i{color:var(--green)}
-.tb.on-r{background:#ef444418;border-color:#ef444455;animation:pulsebrd 1s infinite}
-.tb.on-r i{color:var(--red)}
-.tb.danger i{color:var(--red)}
-.tb.danger:hover{background:#ef444412;border-color:#ef444440}
-.tb[disabled]{opacity:.35;pointer-events:none}
-#tbmeta{display:flex;align-items:center;justify-content:space-between;margin-top:5px;padding:0 2px;font-size:9px;color:var(--text3)}
-#tbmeta span{display:flex;align-items:center;gap:3px}
-#tbmeta b{color:var(--text)}
+.qm-row span{font-size:11.5px;font-weight:600;color:var(--ink2)}
+.qm-switch{width:36px;height:21px;border-radius:20px;background:var(--s3);border:1px solid var(--line2);position:relative;flex-shrink:0;transition:.15s}
+.qm-knob{position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:var(--ink3);transition:.15s}
+.qm-row.on .qm-switch{background:var(--signal-dim);border-color:var(--signal)}
+.qm-row.on .qm-knob{transform:translateX(15px);background:var(--signal)}
+.qm-row.on span{color:var(--signal)}
+#fab-main{
+  width:56px;height:56px;border-radius:50%;background:var(--signal);border:none;
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;cursor:pointer;
+  box-shadow:0 6px 20px rgba(91,124,250,.4);transition:transform .15s ease,background .15s ease;
+}
+#fab-main:active{transform:scale(.92)}
+#fab-main.mode-active{background:var(--s3);border:2px solid var(--signal);box-shadow:0 6px 20px rgba(0,0,0,.5)}
+#fab-main.open-state{transform:rotate(45deg)}
 
-/* ── CENSUS SHAPES ── */
-.census-wrap{display:flex;align-items:center;justify-content:center;position:relative}
-.sh-pucca{width:16px;height:16px;border:2.5px solid #fff;background:#fff}
-.sh-pucca.nr{background:#777;border-color:#ccc}
-.sh-kutcha{
-  width:0;height:0;
-  border-left:9px solid transparent;border-right:9px solid transparent;border-bottom:16px solid #fff;
-  position:relative;
-}
-.sh-kutcha::after{
-  content:'';position:absolute;top:3px;left:-6px;
-  border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid #1e1e35;
-}
-.sh-kutcha.nr::after{border-bottom-color:#777}
-.sh-kutcha.nr{border-bottom-color:#ccc}
-.sh-inst{width:18px;height:18px;border-radius:50%;background:var(--amber);border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff}
-.gps-pulse{
-  width:14px;height:14px;background:var(--accent);border:2px solid #fff;
-  border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,.3),0 0 12px rgba(59,130,246,.6);
-  animation:gpspulse 2s infinite;
-}
-.sh-drag-ring{
-  position:absolute;inset:-6px;border-radius:50%;
-  border:2px dashed var(--amber);animation:rotatering 2s linear infinite;
-}
-.sh-arrow-sel-ring{
-  position:absolute;inset:-5px;border-radius:50%;
-  border:2px solid var(--amber);box-shadow:0 0 8px var(--amber);
-}
-
-/* ── IMAGE OVERLAY CONTROLS ── */
+/* Image overlay controls */
 #geocontrols{
-  position:absolute;bottom:calc(var(--tbh)+10px);left:50%;transform:translateX(-50%);
-  z-index:500;background:var(--card);border:1px solid var(--border2);
-  border-radius:14px;padding:14px 16px;width:min(340px,92vw);
-  display:none;box-shadow:0 8px 32px rgba(0,0,0,.5);
+  position:absolute;bottom:calc(var(--tbh)+12px);left:50%;transform:translateX(-50%);
+  z-index:280;background:var(--s2);border:1px solid var(--line2);
+  border-radius:var(--r-lg);padding:15px 16px;width:min(340px,92vw);
+  display:none;box-shadow:0 8px 32px rgba(0,0,0,.55);
 }
 #geocontrols.on{display:block}
 #geocontrols h4{font-size:12px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px}
 .sg{margin-bottom:10px}
-.sg label{display:flex;justify-content:space-between;font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px}
-.sg input[type=range]{width:100%;accent-color:var(--accent)}
+.sg label{display:flex;justify-content:space-between;font-size:10px;font-weight:600;color:var(--ink2);margin-bottom:4px;font-family:var(--font-mono)}
+.sg input[type=range]{width:100%;accent-color:var(--signal)}
 .geo-btns{display:flex;gap:7px;margin-top:12px}
-.gbtn{flex:1;padding:9px;border-radius:9px;border:1px solid var(--border2);background:var(--card2);color:var(--text);font-size:11px;cursor:pointer;font-family:var(--font);transition:.1s}
+.gbtn{flex:1;padding:10px;border-radius:10px;border:1px solid var(--line2);background:var(--s3);color:var(--ink);font-size:11.5px;cursor:pointer;transition:.1s;font-weight:600}
 .gbtn:active{opacity:.7}
-.gbtn.pr{background:var(--accent);border-color:var(--accent2);color:#fff}
+.gbtn.pr{background:var(--signal);border-color:var(--signal);color:#fff}
 .overlay-drag{
-  background:var(--accent);color:#fff;border-radius:50%;border:2px solid rgba(255,255,255,.4);
+  background:var(--signal);color:#fff;border-radius:50%;border:2px solid rgba(255,255,255,.4);
   display:flex;align-items:center;justify-content:center;font-size:18px;
   box-shadow:0 4px 12px rgba(0,0,0,.5);width:36px;height:36px;
 }
 
-/* ── MODAL ── */
-#moverlay{
-  position:absolute;inset:0;background:rgba(0,0,0,.7);z-index:600;
+/* ── BOTTOM TAB BAR ── */
+#tabbar{
+  flex-shrink:0;display:flex;background:var(--s1);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom,0px);z-index:400;
+}
+.tabbtn{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  padding:9px 2px 8px;cursor:pointer;color:var(--ink3);position:relative;background:none;border:none;
+}
+.tabbtn i{font-size:21px}
+.tabbtn span{font-size:9.5px;font-weight:600;letter-spacing:.01em}
+.tabbtn.active{color:var(--signal)}
+.tab-badge{position:absolute;top:6px;right:calc(50% - 17px);width:8px;height:8px;border-radius:50%;background:var(--warn);border:1.5px solid var(--s1);display:none}
+.tab-badge.show{display:block}
+
+/* ── SHARED: empty state ── */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 24px;color:var(--ink3)}
+.empty-state i{font-size:34px;color:var(--ink3);margin-bottom:14px}
+.es-title{font-size:13.5px;font-weight:700;color:var(--ink2);margin-bottom:5px}
+.es-body{font-size:11.5px;line-height:1.5;max-width:260px}
+
+/* ── SECTION HEADERS (eyebrow style) ── */
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px}
+
+/* ── BUILDINGS / STAGE2 TAB: search & filters ── */
+.tab-topbar{margin-bottom:14px}
+.tab-search{
+  display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--line2);
+  border-radius:var(--r-md);padding:10px 13px;margin-bottom:10px;
+}
+.tab-search i{color:var(--ink3);font-size:15px}
+.tab-search input{flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-size:13px}
+.tab-search input::placeholder{color:var(--ink3)}
+.chip-row{display:flex;gap:7px;flex-wrap:wrap}
+.chip{
+  background:var(--s2);border:1px solid var(--line2);border-radius:18px;padding:6px 13px;
+  font-size:10.5px;font-weight:600;color:var(--ink2);cursor:pointer;white-space:nowrap;
+}
+.chip.active{background:var(--signal-dim);border-color:var(--signal);color:var(--signal)}
+.list-total{font-size:10px;color:var(--ink3);margin:10px 2px 2px;font-family:var(--font-mono)}
+
+/* ── BUILDING ROW ── */
+.brow{
+  display:flex;align-items:center;gap:0;background:var(--s1);border:1px solid var(--line);
+  border-radius:var(--r-md);margin-bottom:8px;overflow:hidden;
+}
+.brow-main{flex:1;display:flex;align-items:center;gap:11px;padding:11px 12px;cursor:pointer;min-width:0}
+.brow-icon{
+  width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;color:#fff;
+}
+.glyph-pucca{width:14px;height:14px;border:2px solid #000;background:#fff}
+.glyph-kutcha{width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:13px solid #fff}
+.brow-body{flex:1;min-width:0}
+.brow-title{font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brow-sub{font-size:10px;color:var(--ink3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s2-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-left:6px}
+.s2-dot.done{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.s2-dot.partial{background:var(--warn)}
+.s2-dot.pending{background:var(--ink3)}
+.brow-edit,.brow-s2{
+  width:42px;align-self:stretch;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:none;border-left:1px solid var(--line);color:var(--ink3);font-size:15px;cursor:pointer;
+}
+.brow-edit:active,.brow-s2:active{background:var(--s2);color:var(--signal)}
+.s2row{padding:11px 12px;display:flex;align-items:center;gap:11px;cursor:pointer}
+.s2row .brow-icon{flex-shrink:0}
+.s2row .brow-body{flex:1;min-width:0}
+.brow-chev{color:var(--ink3);font-size:16px;flex-shrink:0}
+.flash-highlight{animation:flashring 1.5s ease-out}
+
+/* ── STAGE 2 progress header ── */
+.s2-progress-card{background:var(--s1);border:1px solid var(--line);border-radius:var(--r-lg);padding:16px;margin-bottom:14px}
+.s2p-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px}
+.s2p-num{font-family:var(--font-mono);font-size:22px;font-weight:700;color:var(--ink)}
+.s2p-num small{font-size:12px;color:var(--ink3);font-weight:500}
+.s2p-pct{font-family:var(--font-mono);font-size:14px;color:var(--ok);font-weight:700}
+.s2p-track{height:7px;background:var(--s3);border-radius:4px;overflow:hidden;margin-bottom:9px}
+.s2p-fill{height:100%;background:var(--ok);border-radius:4px;transition:width .3s ease}
+.s2p-pop{font-size:11px;color:var(--ink2);font-family:var(--font-mono)}
+
+/* ── STATS TAB ── */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:18px}
+.scard{background:var(--s1);border:1px solid var(--line);border-radius:var(--r-md);padding:14px}
+.scard-num{font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--ink);line-height:1.1}
+.scard-label{font-size:10px;color:var(--ink3);margin-top:5px;font-weight:600;letter-spacing:.02em}
+.stat-section{margin-bottom:20px}
+.stat-section-title{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin-bottom:11px}
+.sbar-row{margin-bottom:11px}
+.sbar-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink2);margin-bottom:5px}
+.sbar-val{font-family:var(--font-mono);color:var(--ink);font-weight:700}
+.sbar-track{height:6px;background:var(--s2);border-radius:3px;overflow:hidden}
+.sbar-fill{height:100%;border-radius:3px;transition:width .3s ease}
+.s2-ring-row{display:flex;align-items:center;gap:16px;margin-bottom:12px;background:var(--s1);border:1px solid var(--line);border-radius:var(--r-md);padding:14px}
+.s2-ring-num{font-family:var(--font-mono);font-size:28px;font-weight:700;color:var(--ok);flex-shrink:0}
+.s2-ring-label{font-size:11px;color:var(--ink2);line-height:1.5}
+
+/* ── BACKUP TAB ── */
+.backup-status-card{border-radius:var(--r-lg);padding:18px;margin-bottom:16px;border:1px solid var(--line)}
+.backup-status-card.never{background:var(--danger-dim);border-color:#fb457040}
+.backup-status-card.overdue{background:var(--warn-dim);border-color:#f5a62340}
+.backup-status-card.ok{background:var(--ok-dim);border-color:#34d39940}
+.bsc-top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.bsc-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.backup-status-card.never .bsc-dot{background:var(--danger);box-shadow:0 0 8px var(--danger)}
+.backup-status-card.overdue .bsc-dot{background:var(--warn);box-shadow:0 0 8px var(--warn)}
+.backup-status-card.ok .bsc-dot{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+#backup-rel-time{font-size:15px;font-weight:700;color:var(--ink)}
+#backup-abs-time{font-size:10.5px;color:var(--ink3);margin-top:3px;margin-left:20px;font-family:var(--font-mono)}
+#backup-current-counts{font-size:10.5px;color:var(--ink2);margin-top:11px;margin-left:20px;font-family:var(--font-mono)}
+.backup-changes-line{font-size:10.5px;color:var(--ink2);margin-left:20px;margin-top:4px}
+.backup-changes-line b{font-family:var(--font-mono);color:var(--ink)}
+
+.bk-btn{
+  width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:13px;border-radius:var(--r-md);border:1px solid var(--line2);background:var(--s1);
+  color:var(--ink);font-size:13px;font-weight:700;cursor:pointer;margin-bottom:9px;
+}
+.bk-btn i{font-size:16px}
+.bk-btn.pr{background:var(--signal);border-color:var(--signal);color:#fff}
+.bk-btn.outline{background:transparent}
+.bk-btn:active{opacity:.75}
+
+.instructions-block{
+  background:var(--s1);border:1px solid var(--line);border-radius:var(--r-md);
+  padding:14px;font-size:11.5px;line-height:1.6;color:var(--ink2);margin:18px 0;
+}
+.instructions-block b{color:var(--ink)}
+.instructions-block .ib-title{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;color:var(--data);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+
+.danger-zone{border:1px solid #fb457030;border-radius:var(--r-md);padding:14px;margin-top:22px}
+.danger-zone .eyebrow{color:var(--danger)}
+
+/* ── MODAL / SHEET SHARED ── */
+.ovl{
+  position:absolute;inset:0;background:rgba(0,0,0,.72);z-index:800;
   display:none;align-items:flex-end;justify-content:center;
   padding-bottom:env(safe-area-inset-bottom,0px);
 }
-#moverlay.open{display:flex}
-#modal{
-  background:var(--card);border:1px solid var(--border2);border-radius:18px 18px 0 0;
+.ovl.open{display:flex}
+#import-overlay{z-index:820}
+.sheet{
+  background:var(--s2);border:1px solid var(--line2);border-radius:var(--r-lg) var(--r-lg) 0 0;
   padding:18px 16px 22px;width:100%;max-width:460px;max-height:88vh;overflow-y:auto;
   -webkit-overflow-scrolling:touch;
 }
-.mdragger{width:40px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 14px}
-#modal h3{font-size:14px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:7px}
+.mdragger{width:38px;height:4px;background:var(--line2);border-radius:2px;margin:0 auto 14px}
+.sheet h3{font-size:14.5px;font-weight:700;margin-bottom:15px;display:flex;align-items:center;gap:7px}
 .fg{margin-bottom:11px}
-.fl{font-size:10px;color:var(--text2);margin-bottom:4px;display:block}
+.fl{font-size:10px;color:var(--ink2);margin-bottom:5px;display:block;font-weight:600;letter-spacing:.01em}
 .fi{
-  width:100%;background:var(--card2);border:1px solid var(--border2);border-radius:9px;
-  padding:9px 11px;color:var(--text);font-size:13px;outline:none;
-  font-family:var(--font);-webkit-appearance:none;transition:.15s;
+  width:100%;background:var(--s3);border:1px solid var(--line2);border-radius:10px;
+  padding:10px 12px;color:var(--ink);font-size:13.5px;outline:none;
+  font-family:var(--font-ui);-webkit-appearance:none;transition:.15s;
 }
-.fi:focus{border-color:var(--accent)}
-.fi option{background:var(--card2)}
-.mbtns{display:flex;gap:8px;margin-top:14px}
-.mbtn{flex:1;padding:11px;border-radius:10px;border:1px solid var(--border2);background:var(--card2);color:var(--text);font-size:13px;cursor:pointer;font-family:var(--font);-webkit-appearance:none;transition:.1s}
+.fi:focus{border-color:var(--signal)}
+.fi option{background:var(--s3)}
+.mbtns{display:flex;gap:8px;margin-top:15px}
+.mbtn{flex:1;padding:12px;border-radius:11px;border:1px solid var(--line2);background:var(--s3);color:var(--ink);font-size:13.5px;cursor:pointer;font-weight:600;-webkit-appearance:none;transition:.1s}
 .mbtn:active{opacity:.7}
-.mbtn.pr{background:var(--accent);border-color:var(--accent2);color:#fff}
+.mbtn.pr{background:var(--signal);border-color:var(--signal);color:#fff}
+
+.seg-row{display:flex;background:var(--s3);border-radius:11px;padding:3px;gap:3px}
+.seg{flex:1;padding:9px 6px;border:none;background:transparent;border-radius:8px;color:var(--ink2);font-size:11.5px;font-weight:600;cursor:pointer}
+.seg.active{background:var(--signal);color:#fff}
+
+.import-summary{background:var(--s3);border-radius:10px;padding:13px;font-size:12px;color:var(--ink2);line-height:1.7;margin-bottom:6px}
+.import-summary .im-warn{color:var(--warn)}
+
+/* ── EDIT POPUP (drag confirm) ── */
+.edit-popup{font-size:11px}
+.edit-popup b{font-size:12px;display:block;margin-bottom:6px}
+.edit-popup .ep-row{display:flex;gap:5px;margin-top:6px}
+.ep-btn{
+  flex:1;padding:6px 4px;border-radius:7px;border:1px solid var(--line2);
+  background:var(--s3);color:var(--ink);font-size:10px;cursor:pointer;
+  display:flex;align-items:center;gap:4px;justify-content:center;
+}
+.ep-btn.pr{background:var(--signal);border-color:var(--signal);color:#fff}
 
 /* ── CONTEXT MENU ── */
 #ctx{
-  position:absolute;z-index:700;background:var(--card2);border:1px solid var(--border2);
-  border-radius:12px;padding:4px;min-width:175px;display:none;
-  box-shadow:0 10px 30px rgba(0,0,0,.5);
+  position:absolute;z-index:500;background:var(--s3);border:1px solid var(--line2);
+  border-radius:13px;padding:4px;min-width:178px;display:none;
+  box-shadow:0 10px 30px rgba(0,0,0,.55);
 }
 #ctx.open{display:block}
-.ci{padding:9px 11px;border-radius:8px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:7px;color:var(--text2);transition:.1s}
-.ci:hover,.ci:active{background:var(--card);color:var(--text)}
-.ci i{font-size:15px;color:var(--text3)}
-.ci.d:hover{color:var(--red)}
-.csep{height:1px;background:var(--border);margin:3px 0}
+.ci{padding:10px 11px;border-radius:9px;font-size:11.5px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--ink2)}
+.ci:active{background:var(--s2);color:var(--ink)}
+.ci i{font-size:15px;color:var(--ink3)}
+.ci.d:active{color:var(--danger)}
+.csep{height:1px;background:var(--line);margin:3px 0}
 
 /* ── UNDO TOAST ── */
 #undo-bar{
-  position:absolute;bottom:calc(var(--tbh)+10px);left:50%;transform:translateX(-50%);
-  background:var(--card);border:1px solid var(--border2);border-radius:10px;
-  padding:8px 14px;font-size:11px;z-index:300;display:none;
+  position:absolute;bottom:calc(var(--tbh)+12px);left:50%;transform:translateX(-50%);
+  background:var(--s2);border:1px solid var(--line2);border-radius:11px;
+  padding:9px 14px;font-size:11px;z-index:450;display:none;
   align-items:center;gap:10px;box-shadow:0 4px 16px rgba(0,0,0,.4);
 }
 #undo-bar.on{display:flex}
-#undo-bar b{color:var(--text)}
-.ubtn{background:var(--accent);border:none;color:#fff;border-radius:7px;padding:5px 10px;font-size:10px;cursor:pointer;font-family:var(--font)}
+#undo-bar b{color:var(--ink)}
+.ubtn{background:var(--signal);border:none;color:#fff;border-radius:7px;padding:6px 11px;font-size:10px;cursor:pointer;font-weight:700}
 
-/* ── ANIMATIONS ── */
+/* ── CENSUS SHAPES (map markers) ── */
+.census-wrap{display:flex;align-items:center;justify-content:center;position:relative}
+.sh-pucca{width:16px;height:16px;border:2.5px solid #fff;background:#fff}
+.sh-pucca.nr{background:#777;border-color:#ccc}
+.sh-kutcha{width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-bottom:16px solid #fff;position:relative}
+.sh-kutcha::after{content:'';position:absolute;top:3px;left:-6px;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid #131318}
+.sh-kutcha.nr::after{border-bottom-color:#777}
+.sh-kutcha.nr{border-bottom-color:#ccc}
+.sh-inst{width:18px;height:18px;border-radius:50%;border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff}
+.stage2-badge{position:absolute;top:-4px;right:-4px;width:10px;height:10px;background:var(--ok);border:1px solid #fff;border-radius:50%}
+.gps-pulse{width:14px;height:14px;background:var(--signal);border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(91,124,250,.3),0 0 12px rgba(91,124,250,.6);animation:gpspulse 2s infinite}
+.sh-drag-ring{position:absolute;inset:-6px;border-radius:50%;border:2px dashed var(--warn);animation:rotatering 2s linear infinite}
+.sh-arrow-sel-ring{position:absolute;inset:-5px;border-radius:50%;border:2px solid var(--warn);box-shadow:0 0 8px var(--warn)}
+
+/* ── ANIMATIONS (deliberately minimal: tab fade, fab expand, banner slide,
+     status pulse, locate-flash — everything else is static) ── */
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-@keyframes pulsebrd{0%,100%{border-color:#ef444450}50%{border-color:#ef4444cc}}
-@keyframes gpspulse{0%,100%{box-shadow:0 0 0 4px rgba(59,130,246,.3)}50%{box-shadow:0 0 0 8px rgba(59,130,246,.1)}}
+@keyframes gpspulse{0%,100%{box-shadow:0 0 0 4px rgba(91,124,250,.3)}50%{box-shadow:0 0 0 8px rgba(91,124,250,.1)}}
 @keyframes rotatering{to{transform:rotate(360deg)}}
+@keyframes flashring{0%{box-shadow:0 0 0 0 rgba(245,166,35,.7)}60%{box-shadow:0 0 0 14px rgba(245,166,35,0)}100%{box-shadow:0 0 0 0 rgba(245,166,35,0)}}
+
+/* ── PRINT ── */
+@media print{
+  #header,#tabbar,#status,#drag-hint,#ctx,#undo-bar,.ovl,#geocontrols,#mode-pill,
+  #map-left-cluster,#map-util-row,#fab-cluster,#bnd-edit-bar,#reminder-banner,.leaflet-control-container{display:none!important}
+  #screens,#screen-map,#map{position:absolute;top:0;left:0;bottom:0;right:0}
+}
 
 /* ── RESPONSIVE ── */
-@media(max-width:480px){
-  :root{--hh:46px;--tbh:64px}
-  .tb{min-width:48px;padding:6px 7px}
-  .tb i{font-size:17px}
-  .logo span.txt{display:none}
-  #searchbox input{width:80px}
-}
-@media(max-height:480px) and (max-width:900px){
-  :root{--hh:40px;--tbh:54px}
-  .tb{padding:5px 6px}
-  .tb i{font-size:16px}
-  #tbmeta{display:none}
-}
-@media(hover:hover){
-  .tb:hover{background:var(--card2)}
+@media(max-width:360px){
+  .stat-grid{grid-template-columns:1fr}
+  #map-left-cluster{max-width:70vw}
 }
 </style>
 </head>
 <body>
-<div id="map"></div>
+<div id="app-shell">
 
-<!-- ═══ HEADER ═══ -->
-<div id="header">
-  <div class="logo">
-    <i class="ti ti-layout-grid"></i>
-    <span class="txt">Census Mapper</span>
-    <span class="lbadge">Field</span>
-  </div>
-  <div id="hsp"></div>
-  <div id="search-wrapper">
-    <div id="searchbox">
-      <input type="text" id="search-input" placeholder="Search place…" autocomplete="off"/>
-      <button onclick="searchPlace()"><i class="ti ti-search"></i></button>
+  <!-- ═══ HEADER ═══ -->
+  <div id="header">
+    <div class="logo">
+      <i class="ti ti-layout-grid"></i>
+      <div class="lname"><b>Census Mapper</b><small>Field Edition</small></div>
     </div>
-    <ul id="suggestions"></ul>
+    <div id="hsp"></div>
+    <div id="device-compass"><div class="needle" id="compass-needle"></div></div>
+    <div id="gpspill" onclick="toggleGPS()">
+      <div id="gdot" class=""></div>
+      <span id="glbl">GPS off</span>
+    </div>
   </div>
-  <div id="modebadge"><i class="ti ti-hand-stop" id="modeicon"></i><span id="modetxt">Pan</span></div>
-  <div id="gpspill" onclick="toggleGPS()">
-    <div id="gdot" class=""></div>
-    <span id="glbl">GPS off</span>
-  </div>
-</div>
 
-<!-- ═══ MAP TYPE SWITCHER ═══ -->
-<div id="maptype">
-  <div class="mt active" onclick="switchMapType('osm')">Map</div>
-  <div class="mt" onclick="switchMapType('sat')">Sat</div>
-  <div class="mt" onclick="switchMapType('dark')">Dark</div>
-</div>
-
-<!-- ═══ STATUS TOAST ═══ -->
-<div id="status"><i id="sicon" class="ti ti-info-circle"></i><span id="smsg"></span></div>
-
-<!-- ═══ DRAG HINT ═══ -->
-<div id="drag-hint">
-  <i class="ti ti-hand-move" style="font-size:16px;flex-shrink:0"></i>
-  <span>Drag marker to exact position, then tap it for options</span>
-</div>
-
-<!-- ═══ BOUNDARY EDIT BAR ═══ -->
-<div id="bnd-edit-bar">
-  <span>✏️ Edit boundary</span>
-  <button class="bebtn" onclick="saveBoundaryEdit()">Save</button>
-  <button class="bebtn danger" onclick="cancelBoundaryEdit()">Cancel</button>
-</div>
-
-<!-- ═══ IMAGE OVERLAY CONTROLS ═══ -->
-<div id="geocontrols">
-  <h4><i class="ti ti-photo" style="color:var(--accent)"></i>Align Map Photo</h4>
-  <div class="sg">
-    <label><span>Opacity</span><span id="opval">50%</span></label>
-    <input type="range" id="img-opacity" min="0.1" max="1" step="0.05" value="0.5" oninput="setOvOpacity(this.value)"/>
+  <!-- ═══ DAILY BACKUP REMINDER BANNER ═══ -->
+  <div id="reminder-banner">
+    <div id="reminder-inner">
+      <i class="ti ti-alert-circle"></i>
+      <span id="reminder-text">No backup yet</span>
+      <button class="rbtn" onclick="exportJSON()">Back up now</button>
+      <button class="rclose" onclick="dismissReminderBanner()"><i class="ti ti-x" style="font-size:14px"></i></button>
+    </div>
   </div>
-  <div class="sg">
-    <label><span>Scale (Size)</span><span id="scval">1.0×</span></label>
-    <input type="range" id="img-scale" min="0.1" max="6" step="0.05" value="1" oninput="setOvScale(this.value)"/>
+
+  <!-- ═══ SCREENS ═══ -->
+  <div id="screens">
+
+    <!-- ─── MAP SCREEN ─── -->
+    <div id="screen-map" class="screen active">
+      <div id="map"></div>
+
+      <div id="map-left-cluster">
+        <div id="map-search-cluster">
+          <div id="map-search-toggle" onclick="toggleSearchPanel()"><i class="ti ti-search"></i></div>
+          <div id="map-search-panel">
+            <div id="searchbox">
+              <input type="text" id="search-input" placeholder="Search a place…" autocomplete="off"/>
+              <button onclick="searchPlace()"><i class="ti ti-search"></i></button>
+            </div>
+            <ul id="suggestions"></ul>
+          </div>
+        </div>
+        <div id="walk-distance-badge">
+          <i class="ti ti-route"></i><span>0 m</span>
+          <button onclick="clearWalkTrail()" title="Clear trail"><i class="ti ti-x" style="font-size:12px"></i></button>
+        </div>
+      </div>
+
+      <div id="mode-pill" onclick="setMode('view')">
+        <i class="ti ti-hand-stop" id="mode-pill-icon"></i>
+        <span id="mode-pill-text">Mode</span>
+      </div>
+
+      <div id="status"><i id="sicon" class="ti ti-info-circle"></i><span id="smsg"></span></div>
+
+      <div id="drag-hint">
+        <i class="ti ti-hand-move" style="font-size:16px;flex-shrink:0"></i>
+        <span>Drag marker to exact position, then tap it for options</span>
+      </div>
+
+      <div id="bnd-edit-bar">
+        <span>Editing boundary</span>
+        <button class="bebtn" onclick="saveBoundaryEdit()">Save</button>
+        <button class="bebtn danger" onclick="cancelBoundaryEdit()">Cancel</button>
+      </div>
+
+      <div id="geocontrols">
+        <h4><i class="ti ti-photo" style="color:var(--signal)"></i>Align Reference Photo</h4>
+        <div class="sg"><label><span>Opacity</span><span id="opval">50%</span></label>
+          <input type="range" id="img-opacity" min="0.1" max="1" step="0.05" value="0.5" oninput="setOvOpacity(this.value)"/></div>
+        <div class="sg"><label><span>Scale</span><span id="scval">1.0×</span></label>
+          <input type="range" id="img-scale" min="0.1" max="6" step="0.05" value="1" oninput="setOvScale(this.value)"/></div>
+        <div class="sg"><label><span>Rotation</span><span id="rotval">0°</span></label>
+          <input type="range" id="img-rotate" min="-180" max="180" step="1" value="0" oninput="setOvRotation(this.value)"/></div>
+        <div class="geo-btns">
+          <button class="gbtn" onclick="removeOverlayConfirm()">Remove</button>
+          <button class="gbtn pr" onclick="lockOverlay()"><i class="ti ti-lock" style="font-size:12px;margin-right:4px"></i>Lock &amp; Draw</button>
+        </div>
+      </div>
+
+      <div id="map-util-row">
+        <div class="util-btn" onclick="undoLast()" title="Undo last [Z]"><i class="ti ti-arrow-back-up"></i></div>
+        <div class="util-btn" onclick="fitToArea()" title="Fit to area"><i class="ti ti-arrows-maximize"></i></div>
+        <div class="util-btn" onclick="printMap()" title="Print map"><i class="ti ti-printer"></i></div>
+      </div>
+
+      <div id="fab-cluster">
+        <div id="fab-stack">
+          <div class="qm-row" id="qm-toggle" onclick="toggleQuickMark()">
+            <span>Quick Mark</span>
+            <span class="qm-switch"><span class="qm-knob"></span></span>
+          </div>
+          <div class="fab-item" data-mode="arrow" onclick="pickMode('arrow')"><i class="ti ti-arrow-move-right"></i><span>Order</span></div>
+          <div class="fab-item" data-mode="line" onclick="pickMode('line')"><i class="ti ti-road"></i><span>Road / River</span></div>
+          <div class="fab-item" data-mode="point" onclick="pickMode('point')"><i class="ti ti-home-plus"></i><span>Building</span></div>
+          <div class="fab-item" data-mode="boundary" onclick="pickMode('boundary')"><i class="ti ti-shape"></i><span>Boundary</span></div>
+        </div>
+        <button id="fab-main" onclick="toggleFab()"><i class="ti ti-hand-stop"></i></button>
+      </div>
+    </div>
+
+    <!-- ─── BUILDINGS SCREEN ─── -->
+    <div id="screen-buildings" class="screen">
+      <div class="screen-panel">
+        <div class="eyebrow">Stage 1 · Building Register</div>
+        <div class="tab-search">
+          <i class="ti ti-search"></i>
+          <input type="text" id="buildings-search" placeholder="Search by name, number, or type…" oninput="onBuildingsSearch(this.value)"/>
+        </div>
+        <div class="chip-row" id="buildings-type-chips">
+          <div class="chip active" data-val="all" onclick="setBuildingsTypeFilter('all')">All</div>
+          <div class="chip" data-val="house" onclick="setBuildingsTypeFilter('house')">Houses</div>
+          <div class="chip" data-val="institution" onclick="setBuildingsTypeFilter('institution')">Institutions</div>
+        </div>
+        <div class="list-total"><span id="buildings-total">0</span> buildings on this device</div>
+        <div id="buildings-list" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <!-- ─── STAGE 2 SCREEN ─── -->
+    <div id="screen-stage2" class="screen">
+      <div class="screen-panel">
+        <div class="eyebrow">Stage 2 · Household Data Entry</div>
+        <div class="s2-progress-card">
+          <div class="s2p-top">
+            <div class="s2p-num"><span id="s2-progress-done">0</span><small> / </small><span id="s2-progress-total">0</span><small> houses</small></div>
+            <div class="s2p-pct" id="s2-progress-pct">0%</div>
+          </div>
+          <div class="s2p-track"><div class="s2p-fill" id="s2-progress-bar-fill" style="width:0%"></div></div>
+          <div class="s2p-pop"><span id="s2-pop-total">0</span> people recorded so far</div>
+        </div>
+        <div class="chip-row" id="stage2-filter-chips">
+          <div class="chip" data-val="pending" onclick="setStage2Filter('pending')">Pending</div>
+          <div class="chip" data-val="done" onclick="setStage2Filter('done')">Completed</div>
+          <div class="chip" data-val="all" onclick="setStage2Filter('all')">All</div>
+        </div>
+        <div id="stage2-list" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- ─── STATS SCREEN ─── -->
+    <div id="screen-stats" class="screen">
+      <div class="screen-panel">
+        <div class="eyebrow">Block Summary</div>
+        <div id="stats-content"></div>
+      </div>
+    </div>
+
+    <!-- ─── BACKUP SCREEN ─── -->
+    <div id="screen-backup" class="screen">
+      <div class="screen-panel">
+        <div class="eyebrow">Data &amp; Backup</div>
+
+        <div class="backup-status-card never" id="backup-status-card">
+          <div class="bsc-top"><div class="bsc-dot"></div><div id="backup-rel-time">Never backed up</div></div>
+          <div id="backup-abs-time">Export a backup to protect your work</div>
+          <div id="backup-current-counts">0 buildings · 0 roads · 0 boundaries · 0 arrows</div>
+          <div class="backup-changes-line"><b id="backup-changes-count">0</b> changes since last backup</div>
+        </div>
+
+        <button class="bk-btn pr" onclick="exportJSON()"><i class="ti ti-download"></i>Back Up Now (.json)</button>
+        <button class="bk-btn outline" onclick="exportCSV()"><i class="ti ti-table"></i>Export Building List (.csv)</button>
+        <button class="bk-btn outline" onclick="triggerImport()"><i class="ti ti-upload"></i>Restore From Backup File</button>
+        <input type="file" id="import-file-input" accept=".json,application/json" style="display:none" onchange="handleImportFile(event)"/>
+
+        <div class="instructions-block">
+          <div class="ib-title"><i class="ti ti-shield-check"></i>Back up every day</div>
+          Your data lives only in this browser, on this device. If the device is lost, reset, or its storage is cleared, anything not backed up is gone for good — there is no server copy.
+          <br/><br/>
+          <b>Export a backup at the end of every working day.</b> It takes one tap and produces a single .json file you can keep anywhere: email it to yourself, save it to a USB drive, or upload it to Google Drive. To restore it later — on this device or a new one — use <b>Restore From Backup File</b> above.
+        </div>
+
+        <div class="danger-zone">
+          <div class="eyebrow">Danger Zone</div>
+          <button class="bk-btn outline" style="border-color:#fb457050;color:var(--danger)" onclick="clearAll()"><i class="ti ti-trash"></i>Wipe All Data</button>
+        </div>
+      </div>
+    </div>
+
   </div>
-  <div class="sg">
-    <label><span>Rotation</span><span id="rotval">0°</span></label>
-    <input type="range" id="img-rotate" min="-180" max="180" step="1" value="0" oninput="setOvRotation(this.value)"/>
+
+  <!-- ═══ BOTTOM TAB BAR ═══ -->
+  <div id="tabbar">
+    <button class="tabbtn active" id="tabbtn-map" onclick="switchTab('map')"><i class="ti ti-map"></i><span>Map</span></button>
+    <button class="tabbtn" id="tabbtn-buildings" onclick="switchTab('buildings')"><i class="ti ti-home"></i><span>Buildings</span></button>
+    <button class="tabbtn" id="tabbtn-stage2" onclick="switchTab('stage2')"><i class="ti ti-clipboard-list"></i><span>Stage 2</span></button>
+    <button class="tabbtn" id="tabbtn-stats" onclick="switchTab('stats')"><i class="ti ti-chart-bar"></i><span>Stats</span></button>
+    <button class="tabbtn" id="tabbtn-backup" onclick="switchTab('backup')">
+      <i class="ti ti-database"></i><span>Backup</span>
+      <div class="tab-badge" id="tab-backup-badge"></div>
+    </button>
   </div>
-  <div class="geo-btns">
-    <button class="gbtn" onclick="removeOverlay()">Remove</button>
-    <button class="gbtn pr" onclick="lockOverlay()"><i class="ti ti-lock" style="font-size:12px;margin-right:4px"></i>Lock & Draw</button>
-  </div>
+
 </div>
 
 <!-- ═══ CONTEXT MENU ═══ -->
 <div id="ctx">
   <div class="ci" id="ctx-edit" onclick="ctxEdit()"><i class="ti ti-pencil"></i>Edit details</div>
   <div class="ci" id="ctx-drag" onclick="ctxStartDrag()"><i class="ti ti-arrows-move"></i>Move / reposition</div>
+  <div class="ci" id="ctx-stage2" onclick="ctxStage2()" style="display:none"><i class="ti ti-clipboard-list"></i>Stage 2 Data</div>
   <div class="ci" id="ctx-shape" onclick="ctxEditShape()" style="display:none"><i class="ti ti-shape"></i>Edit shape</div>
   <div class="ci" id="ctx-snap" onclick="ctxSnapGPS()"><i class="ti ti-current-location"></i>Snap to my GPS</div>
   <div class="csep"></div>
-  <div class="ci d" id="ctx-del" onclick="ctxDelete()"><i class="ti ti-trash" style="color:var(--red)"></i>Delete</div>
+  <div class="ci d" id="ctx-del" onclick="ctxDelete()"><i class="ti ti-trash" style="color:var(--danger)"></i>Delete</div>
   <div class="csep"></div>
   <div class="ci" onclick="closeCtx()"><i class="ti ti-x"></i>Cancel</div>
 </div>
@@ -412,16 +724,31 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 <div id="undo-bar">
   <span><b id="undo-msg">Deleted feature</b></span>
   <button class="ubtn" onclick="undoDelete()">↩ Undo</button>
-  <button class="ubtn" style="background:var(--text3)" onclick="dismissUndo()">✕</button>
+  <button class="ubtn" style="background:var(--ink3)" onclick="dismissUndo()">✕</button>
 </div>
 
-<!-- ═══ MARK MODAL ═══ -->
-<div id="moverlay">
-  <div id="modal">
+<!-- ═══ LAYERS SHEET ═══ -->
+<div id="layers-overlay" class="ovl">
+  <div class="sheet">
     <div class="mdragger"></div>
-    <h3 id="modal-title"><i class="ti ti-home-plus" style="color:var(--accent)"></i>Feature Details</h3>
+    <h3><i class="ti ti-layers" style="color:var(--signal)"></i>Map Layer</h3>
+    <div class="seg-row">
+      <button class="seg active" data-maptype="osm" onclick="switchMapType('osm')">Streets</button>
+      <button class="seg" data-maptype="sat" onclick="switchMapType('sat')">Satellite</button>
+      <button class="seg" data-maptype="dark" onclick="switchMapType('dark')">Dark</button>
+    </div>
+    <button class="mbtn" style="margin-top:16px;width:100%" onclick="closeLayersSheet();document.getElementById('fileup').click()"><i class="ti ti-photo-plus" style="margin-right:6px"></i>Load Reference Photo</button>
+    <input type="file" id="fileup" accept="image/*" style="display:none" onchange="loadImageOverlay(event)"/>
+    <button class="mbtn" style="margin-top:9px;width:100%" onclick="closeLayersSheet()">Close</button>
+  </div>
+</div>
 
-    <!-- POINT FEATURE FORM -->
+<!-- ═══ FEATURE MODAL ═══ -->
+<div id="moverlay" class="ovl">
+  <div id="modal" class="sheet">
+    <div class="mdragger"></div>
+    <h3 id="modal-title"><i class="ti ti-home-plus" style="color:var(--signal)"></i>Feature Details</h3>
+
     <div id="form-point" style="display:none">
       <div class="fg">
         <label class="fl">Feature Type</label>
@@ -452,7 +779,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
           </optgroup>
         </select>
       </div>
-
       <div class="fg" id="fg-usage">
         <label class="fl">Usage Category</label>
         <select class="fi" id="pt-subtype">
@@ -460,24 +786,39 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
           <option value="nr">Non-Residential</option>
         </select>
       </div>
-
       <div class="fg">
         <label class="fl">Number / Label</label>
         <input type="text" class="fi" id="pt-name" placeholder="e.g. 101 or Panchayat Office" autocomplete="off"/>
       </div>
-
       <div class="fg" id="fg-census">
         <label class="fl">Census Houses in Building</label>
         <input type="number" class="fi" id="pt-census" placeholder="1" min="1" value="1" autocomplete="off"/>
       </div>
-
       <div class="fg">
         <label class="fl">Note (optional)</label>
         <input type="text" class="fi" id="pt-note" placeholder="Any extra detail…" autocomplete="off"/>
       </div>
     </div>
 
-    <!-- LINE FEATURE FORM -->
+    <div id="form-stage2" style="display:none">
+      <div class="fg">
+        <label class="fl">Household Head Name</label>
+        <input type="text" class="fi" id="s2-head" placeholder="Full name" autocomplete="off"/>
+      </div>
+      <div class="fg">
+        <label class="fl">Members (total)</label>
+        <input type="number" class="fi" id="s2-members" placeholder="Number" min="0" value="0"/>
+      </div>
+      <div class="fg">
+        <label class="fl">Remarks</label>
+        <input type="text" class="fi" id="s2-remarks" placeholder="Any remark…" autocomplete="off"/>
+      </div>
+      <div class="fg" style="display:flex;align-items:center;gap:9px">
+        <input type="checkbox" id="s2-complete" style="accent-color:var(--ok);width:18px;height:18px"/>
+        <label for="s2-complete" style="font-size:12px;color:var(--ink)">Mark Stage 2 Completed</label>
+      </div>
+    </div>
+
     <div id="form-line" style="display:none">
       <div class="fg">
         <label class="fl">Road / Path Type</label>
@@ -496,6 +837,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
       </div>
     </div>
 
+    <div id="form-boundary" style="display:none">
+      <div class="fg">
+        <label class="fl">Boundary Name / Label</label>
+        <input type="text" class="fi" id="bnd-name" placeholder="e.g. Ward 4, Block A…" autocomplete="off"/>
+      </div>
+      <div class="fg">
+        <label class="fl">Note (optional)</label>
+        <input type="text" class="fi" id="bnd-note" placeholder="Any extra detail…" autocomplete="off"/>
+      </div>
+    </div>
+
     <div class="mbtns">
       <button class="mbtn" onclick="closeModal()">Cancel</button>
       <button class="mbtn pr" onclick="saveFeature()"><i class="ti ti-check" style="font-size:13px;margin-right:4px"></i>Save</button>
@@ -503,109 +855,133 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   </div>
 </div>
 
-<!-- ═══ TOOLBAR ═══ -->
-<div id="toolbar">
-  <div id="tbrow">
-    <!-- GPS -->
-    <div class="tb" id="tb-gps" onclick="toggleGPS()" title="GPS Track">
-      <i class="ti ti-current-location"></i>GPS
+<!-- ═══ IMPORT CONFIRM MODAL ═══ -->
+<div id="import-overlay" class="ovl">
+  <div id="import-modal" class="sheet">
+    <div class="mdragger"></div>
+    <h3><i class="ti ti-upload" style="color:var(--signal)"></i>Restore Backup</h3>
+    <div id="import-summary" class="import-summary"></div>
+    <div class="mbtns" style="flex-direction:column;gap:9px">
+      <button class="mbtn pr" onclick="applyImport('merge')"><i class="ti ti-check" style="font-size:13px;margin-right:4px"></i>Merge with current data</button>
+      <button class="mbtn" style="color:var(--danger);border-color:#fb457050" onclick="applyImport('replace')">Replace all current data</button>
+      <button class="mbtn" onclick="closeImportModal()">Cancel</button>
     </div>
-    <!-- Modes -->
-    <div class="tb on" id="tb-view" onclick="setMode('view')" title="Pan [V]">
-      <i class="ti ti-hand-stop"></i>Pan
-    </div>
-    <div class="tb" id="tb-boundary" onclick="setMode('boundary')" title="Boundary [B]">
-      <i class="ti ti-shape"></i>Boundary
-    </div>
-    <div class="tb" id="tb-point" onclick="setMode('point')" title="Mark Building / Institution [P]">
-      <i class="ti ti-home-plus"></i>Building
-    </div>
-    <div class="tb" id="tb-line" onclick="setMode('line')" title="Draw Road / River [L]">
-      <i class="ti ti-road"></i>Road
-    </div>
-    <div class="tb" id="tb-arrow" onclick="setMode('arrow')" title="Arrow Between Buildings [A]">
-      <i class="ti ti-arrow-move-right"></i>Number
-    </div>
-    <!-- Photo overlay -->
-    <div class="tb" id="tb-photo" onclick="document.getElementById('fileup').click()" title="Load map photo">
-      <i class="ti ti-photo-plus"></i>Map Photo
-    </div>
-    <input type="file" id="fileup" accept="image/*" style="display:none" onchange="loadImageOverlay(event)"/>
-    <div class="tb" id="tb-photo-rm" style="display:none" onclick="removeOverlay()">
-      <i class="ti ti-photo-off" style="color:var(--red)"></i>Clear Photo
-    </div>
-    <!-- Utils -->
-    <div class="tb" onclick="undoLast()" title="Undo last [Z]">
-      <i class="ti ti-arrow-back-up"></i>Undo
-    </div>
-    <div class="tb" onclick="fitToArea()" title="Fit to Area">
-      <i class="ti ti-arrows-maximize"></i>Focus
-    </div>
-    <div class="tb" onclick="printMap()" title="Print Map">
-      <i class="ti ti-printer"></i>Print
-    </div>
-    <div class="tb" onclick="exportData()" title="Export">
-      <i class="ti ti-download"></i>Export
-    </div>
-    <div class="tb danger" onclick="clearAll()" title="Wipe all">
-      <i class="ti ti-trash"></i>Wipe
-    </div>
-  </div>
-  <div id="tbmeta">
-    <span><i class="ti ti-home" style="font-size:10px;color:var(--accent)"></i><b id="cnt-bldg">0</b> points</span>
-    <span><i class="ti ti-road" style="font-size:10px;color:var(--cyan)"></i><b id="cnt-road">0</b> lines</span>
-    <span><i class="ti ti-shape" style="font-size:10px;color:var(--green)"></i><b id="cnt-bndy">0</b> boundaries</span>
   </div>
 </div>
 
 <script>
 'use strict';
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MAP SETUP (with rotation plugin loaded)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const map = L.map('map',{
+
+/* ════════════════════════════════════════════════════════════
+   ID HELPER — counter + timestamp avoids any collision even
+   when several features are saved within the same millisecond.
+   ════════════════════════════════════════════════════════════ */
+let _idSeq = 0;
+function newId(){ return Date.now()*1000 + (++_idSeq % 1000); }
+
+/* ════════════════════════════════════════════════════════════
+   SHARED TYPE METADATA — single source of truth used by the
+   map renderer, the Buildings list, and the Stats dashboard.
+   ════════════════════════════════════════════════════════════ */
+const INSTITUTION_META = {
+  'temple':            {letter:'T',  color:'#f97316', label:'Temple'},
+  'mosque':            {letter:'M',  color:'#10b981', label:'Mosque'},
+  'church':            {letter:'C',  color:'#ef4444', label:'Church'},
+  'gurudwara':         {letter:'G',  color:'#eab308', label:'Gurudwara'},
+  'school':            {letter:'S',  color:'#8b5cf6', label:'School'},
+  'dispensary':        {letter:'D',  color:'#ec4899', label:'Dispensary'},
+  'panchayat-office':  {letter:'P',  color:'#14b8a6', label:'Panchayat Office'},
+  'post-office':       {letter:'PO', color:'#78716c', label:'Post Office'},
+  'well-handpump':     {letter:'W',  color:'#06b6d4', label:'Well / Hand Pump'},
+  'pond':              {letter:'P',  color:'#3b82f6', label:'Pond'},
+  'other-institution': {letter:'I',  color:'#a855f7', label:'Other Institution'},
+  'other-building':    {letter:'B',  color:'#9ca3af', label:'Other Building'}
+};
+function isHouseType(type){ return type==='pucca-house' || type==='kutcha-house'; }
+function typeLabel(type){
+  if(type==='pucca-house') return 'Pucca House';
+  if(type==='kutcha-house') return 'Kutcha House';
+  return (INSTITUTION_META[type] && INSTITUTION_META[type].label) || 'Feature';
+}
+function typeColor(type){
+  if(isHouseType(type)) return '#f5f5f7';
+  return (INSTITUTION_META[type] && INSTITUTION_META[type].color) || '#6b7280';
+}
+function typeGlyphHTML(f){
+  if(f.type==='pucca-house') return '<div class="glyph-pucca"></div>';
+  if(f.type==='kutcha-house') return '<div class="glyph-kutcha"></div>';
+  return (INSTITUTION_META[f.type] && INSTITUTION_META[f.type].letter) || '?';
+}
+
+/* ════════════════════════════════════════════════════════════
+   MAP SETUP
+   ════════════════════════════════════════════════════════════ */
+const map = L.map('map', {
   zoomControl:false, maxZoom:22, preferCanvas:false,
-  tapTolerance:15, bounceAtZoomLimits:false,
-  touchZoom: true,
+  tapTolerance:15, bounceAtZoomLimits:false, touchZoom:true,
+  rotate:true, touchRotate:false
 }).setView([10.5,76.2],16);
 
 L.control.zoom({position:'topright'}).addTo(map);
 
-// ── Compass control (uses leaflet-rotate's setBearing) ──
 const CompassControl = L.Control.extend({
-  options: { position: 'topright' },
-  onAdd: function (map) {
-    const container = L.DomUtil.create('div', 'leaflet-control-compass');
-    container.innerHTML = '<i class="ti ti-arrow-north" style="font-size:16px"></i>';
-    container.title = 'Reset north (double-tap)';
-    L.DomEvent.on(container, 'click', function(e){
-      L.DomEvent.stopPropagation(e);
-      L.DomEvent.preventDefault(e);
-      if (map.setBearing) map.setBearing(0);
+  options:{position:'topright'},
+  onAdd:function(m){
+    const c = L.DomUtil.create('div','map-ctrl-btn');
+    c.innerHTML = '<i class="ti ti-arrow-north" style="font-size:16px"></i>';
+    c.title = 'Reset north';
+    L.DomEvent.on(c,'click',function(e){
+      L.DomEvent.stopPropagation(e); L.DomEvent.preventDefault(e);
+      if(m.setBearing) m.setBearing(0);
       updateCompassVisibility();
     });
-    return container;
+    return c;
   }
 });
 new CompassControl().addTo(map);
 
+const LayersControl = L.Control.extend({
+  options:{position:'topright'},
+  onAdd:function(){
+    const c = L.DomUtil.create('div','map-ctrl-btn');
+    c.innerHTML = '<i class="ti ti-layers" style="font-size:16px"></i>';
+    c.title = 'Map layer';
+    L.DomEvent.on(c,'click',function(e){
+      L.DomEvent.stopPropagation(e); L.DomEvent.preventDefault(e);
+      openLayersSheet();
+    });
+    return c;
+  }
+});
+new LayersControl().addTo(map);
+
+const WalkControl = L.Control.extend({
+  options:{position:'topright'},
+  onAdd:function(){
+    const c = L.DomUtil.create('div','map-ctrl-btn');
+    c.id = 'walk-ctrl-btn';
+    c.innerHTML = '<i class="ti ti-route" style="font-size:16px"></i>';
+    c.title = 'Track my walk';
+    L.DomEvent.on(c,'click',function(e){
+      L.DomEvent.stopPropagation(e); L.DomEvent.preventDefault(e);
+      toggleWalkTracking();
+    });
+    return c;
+  }
+});
+new WalkControl().addTo(map);
+
 function updateCompassVisibility(){
-  const compass = document.querySelector('.leaflet-control-compass');
-  if (compass) compass.style.display = map.getBearing && map.getBearing() !== 0 ? 'flex' : 'none';
+  const compass = document.querySelector('.map-ctrl-btn');
+  if(compass) compass.style.display = (map.getBearing && map.getBearing()!==0) ? 'flex' : 'none';
 }
 updateCompassVisibility();
 map.on('rotate', updateCompassVisibility);
 
 const TILES = {
-  osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    attribution:'© OSM', maxZoom:22, maxNativeZoom:19
-  }),
-  sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
-    attribution:'© Esri', maxZoom:22, maxNativeZoom:20
-  }),
-  dark:L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
-    attribution:'© CARTO', maxZoom:22, maxNativeZoom:20
-  })
+  osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM',maxZoom:22,maxNativeZoom:19}),
+  sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:22,maxNativeZoom:20}),
+  dark:L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CARTO',maxZoom:22,maxNativeZoom:20})
 };
 let currentBase = TILES.osm;
 currentBase.addTo(map);
@@ -614,420 +990,481 @@ function switchMapType(type){
   map.removeLayer(currentBase);
   currentBase = TILES[type];
   currentBase.addTo(map);
-  document.querySelectorAll('.mt').forEach(b=>b.classList.remove('active'));
-  document.querySelector(`.mt[onclick="switchMapType('${type}')"]`).classList.add('active');
+  document.querySelectorAll('.seg[data-maptype]').forEach(b=>b.classList.toggle('active', b.dataset.maptype===type));
 }
+function openLayersSheet(){ document.getElementById('layers-overlay').classList.add('open'); }
+function closeLayersSheet(){ document.getElementById('layers-overlay').classList.remove('open'); }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TWO‑FINGER ROTATION (using leaflet-rotate's setBearing)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/* ── Two-finger rotation (NaN/zero-distance guarded) ── */
 (function(){
   const container = map.getContainer();
-  let initialAngle = 0;
-  let initialBearing = 0;
-  let initialDistance = 0;
-  let isRotating = false;
-
-  function getAngle(t1, t2){
-    return Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX);
-  }
-
-  function getDistance(t1, t2){
-    const dx = t2.clientX - t1.clientX;
-    const dy = t2.clientY - t1.clientY;
-    return Math.sqrt(dx*dx + dy*dy);
-  }
+  let initialAngle=0, initialBearing=0, initialDistance=0, isRotating=false;
+  function getAngle(t1,t2){ return Math.atan2(t2.clientY-t1.clientY, t2.clientX-t1.clientX); }
+  function getDistance(t1,t2){ const dx=t2.clientX-t1.clientX, dy=t2.clientY-t1.clientY; return Math.sqrt(dx*dx+dy*dy); }
 
   container.addEventListener('touchstart', function(e){
-    if (e.touches.length === 2){
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
-      initialAngle = getAngle(t1, t2);
+    if(e.touches.length===2){
+      const t1=e.touches[0], t2=e.touches[1];
+      initialAngle = getAngle(t1,t2);
       initialBearing = map.getBearing ? map.getBearing() : 0;
-      initialDistance = getDistance(t1, t2);
-      isRotating = true;
-    } else {
-      isRotating = false;
-    }
-  }, {passive: false});
+      initialDistance = getDistance(t1,t2);
+      isRotating = initialDistance > 20;
+    } else { isRotating = false; }
+  }, {passive:false});
 
   container.addEventListener('touchmove', function(e){
-    if (!isRotating || e.touches.length !== 2) return;
-    const t1 = e.touches[0];
-    const t2 = e.touches[1];
-    const currentAngle = getAngle(t1, t2);
-    const currentDistance = getDistance(t1, t2);
-
+    if(!isRotating || e.touches.length!==2) return;
+    const t1=e.touches[0], t2=e.touches[1];
+    const currentAngle = getAngle(t1,t2);
+    const currentDistance = getDistance(t1,t2);
     const angleDelta = currentAngle - initialAngle;
-    const distChangeRatio = Math.abs(currentDistance - initialDistance) / initialDistance;
-
-    if (Math.abs(angleDelta) > 0.05 && distChangeRatio < 0.15){
+    const distDelta = Math.abs(currentDistance - initialDistance);
+    if(Math.abs(angleDelta) > 0.05 && distDelta < 30){
       e.preventDefault();
-      const bearingDelta = angleDelta * (180 / Math.PI);
-      if (map.setBearing) map.setBearing(initialBearing + bearingDelta);
+      const bearingDelta = angleDelta * (180/Math.PI);
+      if(map.setBearing) map.setBearing(initialBearing + bearingDelta);
     }
-  }, {passive: false});
+  }, {passive:false});
 
-  container.addEventListener('touchend', function(){
-    isRotating = false;
-  });
+  container.addEventListener('touchend', function(){ isRotating=false; });
 })();
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// STATE
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-let features   = JSON.parse(localStorage.getItem('census-v3')||'[]');
-let currentMode= 'view';
+/* ════════════════════════════════════════════════════════════
+   STATE
+   ════════════════════════════════════════════════════════════ */
+let features = [];
+let _deferredStatus = null;
+try{
+  features = JSON.parse(localStorage.getItem('census-v4') || '[]');
+  if(!Array.isArray(features)) features = [];
+}catch(e){
+  features = [];
+  _deferredStatus = {msg:'Saved data could not be loaded — starting fresh', type:'err', dur:5000};
+}
+
+let currentMode = 'view';
 let tempCoords = [];
-let tempLayer  = null;
-let mkLayer    = L.featureGroup().addTo(map);
-let watchId    = null, youMk=null, youCircle=null;
-let pendingData= null;
-let editingId  = null;
-let ctxFid     = null;
-let lastDeleted= null;
-let undoTimer  = null;
+let tempLayer = null;
+let mkLayer = L.featureGroup().addTo(map);
+let watchId=null, youMk=null, youCircle=null;
+let pendingData=null, editingId=null, ctxFid=null;
+let undoStack=[]; const UNDO_MAX=20;
+let draggingMk=null, draggingFid=null, allMarkerRefs={};
+let refOverlay=null, refMarkerCenter=null;
+let baseLatSpan=0.005, baseLngSpan=0.005, imgAngle=0;
+let gpsPausedByDrag=false;
+let editBndFid=null, editBndCoords=null, editBndMkGrp=null;
+let searchMarker=null, suggestTimer=null, suggestCache=[], suggestRequestId=0;
+let arrowFromFid=null, arrowFromRing=null, arrowFromOrigOpacity=1;
+let deviceHeading=null;
+let activeTab='map';
+const TABS=['map','buildings','stage2','stats','backup'];
+let fabOpen=false;
+let gpsOn=false, followMode=false;
 
-let draggingMk    = null;
-let draggingFid   = null;
-let allMarkerRefs = {};
+let quickMarkOn = (localStorage.getItem('census-quickmark')==='1');
+let qmLast = {type:'pucca-house', subtype:'res', censusCount:1};
 
-let refOverlay  = null, refMarkerCenter=null;
-let baseLatSpan = 0.005, baseLngSpan=0.005, imgAngle=0;
+let walkTrail=[], walkTracking=false, walkDistance=0, walkLayer=null, walkLastSaveAt=0;
+try{
+  const savedTrail = JSON.parse(localStorage.getItem('census-walk-trail')||'null');
+  if(Array.isArray(savedTrail)) walkTrail = savedTrail;
+}catch(e){ walkTrail = []; }
 
-let gpsPausedByDrag = false;
+const BACKUP_OVERDUE_MS = 24*60*60*1000;
+let lastBackupAt = parseInt(localStorage.getItem('census-last-backup')||'0',10) || 0;
+let changesSinceBackup = parseInt(localStorage.getItem('census-changes-since-backup')||'0',10) || 0;
+let bannerDismissedThisSession = false;
 
-let editBndFid    = null;
-let editBndCoords = null;
-let editBndMkGrp  = null;
+let buildingsSearchQuery='', buildingsTypeFilter='all';
+let stage2Filter='pending';
 
-let searchMarker = null;
-let suggestTimer = null;
-let suggestCache = [];
-let suggestRequestId = 0;   // for race condition handling
+/* ════════════════════════════════════════════════════════════
+   DEVICE COMPASS — Android (absolute) + iOS (webkit) fallback
+   ════════════════════════════════════════════════════════════ */
+function applyDeviceHeading(event){
+  let heading=null;
+  if(event.webkitCompassHeading!==undefined && event.webkitCompassHeading!==null) heading=event.webkitCompassHeading;
+  else if(event.alpha!==null && event.alpha!==undefined) heading=360-event.alpha;
+  if(heading!==null){
+    deviceHeading=heading;
+    const needle=document.getElementById('compass-needle');
+    if(needle) needle.style.transform=`rotate(${heading}deg)`;
+  }
+}
+if(window.DeviceOrientationEvent){
+  window.addEventListener('deviceorientationabsolute', applyDeviceHeading, true);
+  window.addEventListener('deviceorientation', function(e){ if(deviceHeading===null) applyDeviceHeading(e); }, true);
+}
 
-let arrowFromFid = null;
-let arrowFromRing = null;
-let arrowFromOrigOpacity = 1;
+/* ════════════════════════════════════════════════════════════
+   HAPTICS
+   ════════════════════════════════════════════════════════════ */
+function haptic(ms){ if(navigator.vibrate){ try{ navigator.vibrate(ms); }catch(e){} } }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SEARCH WITH SUGGESTIONS (race condition fixed)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/* ════════════════════════════════════════════════════════════
+   SEARCH (place lookup via Nominatim)
+   ════════════════════════════════════════════════════════════ */
 const searchInput = document.getElementById('search-input');
 const suggestions = document.getElementById('suggestions');
 
-searchInput.addEventListener('input', function(){
-  const val = this.value.trim();
-  if(val.length < 2){
-    suggestions.classList.remove('on');
-    return;
-  }
-  clearTimeout(suggestTimer);
-  suggestTimer = setTimeout(()=>fetchSuggestions(val), 300);
-});
+function toggleSearchPanel(){
+  const panel = document.getElementById('map-search-panel');
+  const open = panel.classList.toggle('open');
+  if(open) setTimeout(()=>searchInput.focus(),150);
+  else { suggestions.classList.remove('on'); searchInput.value=''; }
+}
+function closeSearchPanel(){ document.getElementById('map-search-panel').classList.remove('open'); }
 
+searchInput.addEventListener('input', function(){
+  const val=this.value.trim();
+  if(val.length<2){ suggestions.classList.remove('on'); return; }
+  clearTimeout(suggestTimer);
+  suggestTimer=setTimeout(()=>fetchSuggestions(val), 300);
+});
 searchInput.addEventListener('keydown', function(e){
   const items = suggestions.querySelectorAll('.sug-item');
   if(!items.length) return;
   let idx = Array.from(items).findIndex(el=>el.classList.contains('active'));
-  if(e.key === 'ArrowDown'){
-    e.preventDefault();
-    idx = (idx + 1) % items.length;
-    items.forEach(el=>el.classList.remove('active'));
-    items[idx].classList.add('active');
-    items[idx].scrollIntoView({block:'nearest'});
-  } else if(e.key === 'ArrowUp'){
-    e.preventDefault();
-    idx = (idx - 1 + items.length) % items.length;
-    items.forEach(el=>el.classList.remove('active'));
-    items[idx].classList.add('active');
-    items[idx].scrollIntoView({block:'nearest'});
-  } else if(e.key === 'Enter'){
-    e.preventDefault();
-    if(idx >= 0) items[idx].click();
-    else searchPlace();
-  } else if(e.key === 'Escape'){
-    suggestions.classList.remove('on');
-  }
+  if(e.key==='ArrowDown'){ e.preventDefault(); idx=(idx+1)%items.length; items.forEach(el=>el.classList.remove('active')); items[idx].classList.add('active'); items[idx].scrollIntoView({block:'nearest'}); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); idx=(idx-1+items.length)%items.length; items.forEach(el=>el.classList.remove('active')); items[idx].classList.add('active'); items[idx].scrollIntoView({block:'nearest'}); }
+  else if(e.key==='Enter'){ e.preventDefault(); if(idx>=0) items[idx].click(); else searchPlace(); }
+  else if(e.key==='Escape'){ suggestions.classList.remove('on'); }
 });
-
 document.addEventListener('click', function(e){
-  if(!e.target.closest('#search-wrapper')) suggestions.classList.remove('on');
+  if(!e.target.closest('#map-search-cluster')) suggestions.classList.remove('on');
 });
 
 async function fetchSuggestions(query){
-  const reqId = ++suggestRequestId;
+  const reqId=++suggestRequestId;
   try{
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`;
-    const resp = await fetch(url, {headers:{'User-Agent':'CensusMapperApp/1.0'}});
-    const data = await resp.json();
-    if(reqId !== suggestRequestId) return; // ignore outdated response
+    const url=`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`;
+    const resp=await fetch(url,{headers:{'User-Agent':'CensusMapperApp/2.0'}});
+    const data=await resp.json();
+    if(reqId!==suggestRequestId) return;
     if(!data.length){ suggestions.classList.remove('on'); return; }
-    suggestCache = data;
-    renderSuggestions(data);
-    suggestions.classList.add('on');
-  }catch(e){
-    suggestions.classList.remove('on');
-  }
+    suggestCache=data; renderSuggestions(data); suggestions.classList.add('on');
+  }catch(e){ suggestions.classList.remove('on'); }
 }
-
 function renderSuggestions(data){
   suggestions.innerHTML = data.map((place,idx)=>{
-    const name = place.display_name.split(',')[0];
-    const detail = place.display_name.split(',').slice(1).join(', ').trim();
-    return `<li class="sug-item" data-idx="${idx}">
-      <div class="sug-name">${esc(name)}</div>
-      <div class="sug-detail">${esc(detail)}</div>
-    </li>`;
+    const name=place.display_name.split(',')[0];
+    const detail=place.display_name.split(',').slice(1).join(', ').trim();
+    return `<li class="sug-item" data-idx="${idx}"><div class="sug-name">${esc(name)}</div><div class="sug-detail">${esc(detail)}</div></li>`;
   }).join('');
   suggestions.querySelectorAll('.sug-item').forEach(item=>{
     item.addEventListener('click', function(){
-      const idx = parseInt(this.dataset.idx);
+      const idx=parseInt(this.dataset.idx);
       if(!isNaN(idx) && suggestCache[idx]) selectSuggestion(suggestCache[idx]);
     });
   });
 }
-
 function selectSuggestion(place){
   suggestions.classList.remove('on');
-  searchInput.value = '';
-  const lat = parseFloat(place.lat);
-  const lon = parseFloat(place.lon);
-  map.flyTo([lat, lon], 17, {duration:1});
+  searchInput.value=''; closeSearchPanel();
+  const lat=parseFloat(place.lat), lon=parseFloat(place.lon);
+  map.flyTo([lat,lon],17,{duration:1});
   if(searchMarker) map.removeLayer(searchMarker);
-  searchMarker = L.marker([lat,lon],{
-    icon: L.divIcon({className:'',html:'<div style="background:#ef4444;width:12px;height:12px;border-radius:50%;border:2px solid #fff;"></div>',iconSize:[12,12],iconAnchor:[6,6]})
-  }).addTo(map).bindPopup(`<b>${esc(place.display_name)}</b>`).openPopup();
+  searchMarker=L.marker([lat,lon],{icon:L.divIcon({className:'',html:'<div style="background:#fb4570;width:12px;height:12px;border-radius:50%;border:2px solid #fff;"></div>',iconSize:[12,12],iconAnchor:[6,6]})}).addTo(map).bindPopup(`<b>${esc(place.display_name)}</b>`).openPopup();
   showStatus(`Found: ${place.display_name.split(',')[0]}`,'ok',3000);
 }
-
 function searchPlace(){
-  const val = searchInput.value.trim();
-  if(!val){ showStatus('Please type a place name','warn'); return; }
+  const val=searchInput.value.trim();
+  if(!val){ showStatus('Type a place name to search','warn'); return; }
   suggestions.classList.remove('on');
   showStatus('Searching…','ok',0);
-  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&limit=1`,{
-    headers:{'User-Agent':'CensusMapperApp/1.0'}
-  })
-  .then(r=>r.json())
-  .then(data=>{
-    if(!data.length){ showStatus('Place not found','err'); return; }
-    selectSuggestion(data[0]);
-  })
-  .catch(()=>showStatus('Search failed – check connection','err'));
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&limit=1`,{headers:{'User-Agent':'CensusMapperApp/2.0'}})
+    .then(r=>r.json())
+    .then(data=>{ if(!data.length){ showStatus('Place not found','err'); return; } selectSuggestion(data[0]); })
+    .catch(()=>showStatus('Search failed – check connection','err'));
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// GPS (unchanged)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-let gpsOn=false;
-function toggleGPS(){ gpsOn?stopGPS():startGPS(); }
+/* ════════════════════════════════════════════════════════════
+   GPS — follow mode pauses automatically when the user pans
+   ════════════════════════════════════════════════════════════ */
+map.on('dragstart', function(){
+  if(followMode){
+    followMode=false;
+    showStatus('GPS follow paused — tap GPS to re-centre','warn',3000);
+  }
+});
+
+function toggleGPS(){ gpsOn ? stopGPS() : startGPS(); }
 function startGPS(){
-  if(!navigator.geolocation){showStatus('GPS not supported','err');return}
-  const dot=document.getElementById('gdot');
-  const lbl=document.getElementById('glbl');
+  if(!navigator.geolocation){ showStatus('GPS not supported on this device','err'); return; }
+  const dot=document.getElementById('gdot'), lbl=document.getElementById('glbl');
   dot.className='search'; lbl.textContent='Searching…';
-  document.getElementById('tb-gps').classList.add('on-g');
-  gpsOn=true;
-  gpsPausedByDrag = false;
+  gpsOn=true; gpsPausedByDrag=false; followMode=true;
 
   watchId=navigator.geolocation.watchPosition(p=>{
-    const{latitude:lat,longitude:lng,accuracy:acc}=p.coords;
-    dot.className=acc<=20?'lock':'poor';
-    lbl.textContent='±'+Math.round(acc)+'m';
+    const {latitude:lat, longitude:lng, accuracy:acc} = p.coords;
+    dot.className = acc<=20 ? 'lock' : 'poor';
+    lbl.textContent = '±'+Math.round(acc)+'m';
     const ll=[lat,lng];
     if(!youMk){
-      youMk=L.marker(ll,{
-        icon:L.divIcon({className:'',html:'<div class="gps-pulse"></div>',iconSize:[14,14],iconAnchor:[7,7]}),
-        draggable:true,
-        zIndexOffset:2000
-      }).addTo(map).bindPopup('<b style="font-size:12px">📍 You are here</b>');
-      youMk.on('dragstart',function(){
-        gpsPausedByDrag = true;
-        showStatus('GPS location frozen – tap GPS pill to resume tracking','warn',3000);
-      });
-      youMk.on('dragend',function(e){
+      youMk=L.marker(ll,{icon:L.divIcon({className:'',html:'<div class="gps-pulse"></div>',iconSize:[14,14],iconAnchor:[7,7]}),draggable:true,zIndexOffset:2000}).addTo(map).bindPopup('<b style="font-size:12px">You are here</b>');
+      youMk.on('dragstart', function(){ gpsPausedByDrag=true; showStatus('GPS location frozen – tap GPS to resume','warn',3000); });
+      youMk.on('dragend', function(e){
         const pos=e.target.getLatLng();
-        if(youCircle){
-          map.removeLayer(youCircle);
-          youCircle=L.circle([pos.lat,pos.lng],{radius:acc,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:.08,weight:1,dashArray:'4,4'}).addTo(map);
-        }
+        if(youCircle){ map.removeLayer(youCircle); youCircle=L.circle([pos.lat,pos.lng],{radius:acc,color:'#5b7cfa',fillColor:'#5b7cfa',fillOpacity:.08,weight:1,dashArray:'4,4'}).addTo(map); }
       });
       map.setView(ll,18);
-    } else if (!gpsPausedByDrag) {
-      youMk.setLatLng(ll);
+    } else {
+      if(!gpsPausedByDrag){ youMk.setLatLng(ll); if(followMode) map.panTo(ll,{animate:true,duration:0.5}); }
     }
     if(youCircle) map.removeLayer(youCircle);
-    youCircle=L.circle(ll,{radius:acc,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:.08,weight:1,dashArray:'4,4'}).addTo(map);
-    if(acc>30) showStatus('Weak GPS: ±'+Math.round(acc)+'m — move outdoors','warn');
+    youCircle=L.circle(ll,{radius:acc,color:'#5b7cfa',fillColor:'#5b7cfa',fillOpacity:.08,weight:1,dashArray:'4,4'}).addTo(map);
+    if(acc>30) showStatus('Weak GPS: ±'+Math.round(acc)+'m — move to open ground','warn');
     else clearStatus();
-  },err=>{
+    if(walkTracking) recordWalkPoint(ll);
+  }, err=>{
     dot.className='poor'; lbl.textContent='GPS Error';
     showStatus(gpsErrMsg(err),'err',6000);
-  },{enableHighAccuracy:true,maximumAge:0,timeout:20000});
+  }, {enableHighAccuracy:true, maximumAge:0, timeout:20000});
 }
 function stopGPS(){
-  if(watchId){navigator.geolocation.clearWatch(watchId);watchId=null;}
-  if(youMk){map.removeLayer(youMk);youMk=null;}
-  if(youCircle){map.removeLayer(youCircle);youCircle=null;}
+  if(watchId){ navigator.geolocation.clearWatch(watchId); watchId=null; }
+  if(youMk){ map.removeLayer(youMk); youMk=null; }
+  if(youCircle){ map.removeLayer(youCircle); youCircle=null; }
   document.getElementById('gdot').className='';
   document.getElementById('glbl').textContent='GPS off';
-  document.getElementById('tb-gps').classList.remove('on-g');
-  gpsOn=false;
-  gpsPausedByDrag = false;
+  gpsOn=false; gpsPausedByDrag=false; followMode=false;
+  if(walkTracking) toggleWalkTracking();
   clearStatus();
 }
 function gpsErrMsg(err){
-  if(err.code===1) return 'Location denied — enable in browser settings';
-  if(err.code===2) return 'GPS unavailable — go outdoors';
+  if(err.code===1) return 'Location denied — enable it in browser settings';
+  if(err.code===2) return 'GPS unavailable — move outdoors';
   if(err.code===3) return 'GPS timed out — weak signal';
-  return 'GPS error: '+err.message;
+  return 'GPS error: '+(err.message||'unknown error');
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MODE MANAGEMENT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const MODES={
-  view:     {icon:'ti-hand-stop',   label:'Pan'},
-  boundary: {icon:'ti-shape',       label:'Draw Boundary'},
-  point:    {icon:'ti-home-plus',   label:'Mark Building/Place'},
-  line:     {icon:'ti-road',        label:'Draw Road / River'},
-  arrow:    {icon:'ti-arrow-move-right',label:'Select Arrow Direction'}
+/* ════════════════════════════════════════════════════════════
+   WALK TRACKING — GPS breadcrumb trail with jitter filtering
+   ════════════════════════════════════════════════════════════ */
+function computeTrailDistance(trail){
+  let d=0; for(let i=1;i<trail.length;i++) d+=map.distance(trail[i-1],trail[i]); return d;
+}
+if(walkTrail.length>1) walkDistance = computeTrailDistance(walkTrail);
+
+function recordWalkPoint(ll){
+  const lastPt = walkTrail[walkTrail.length-1];
+  if(lastPt){
+    const segDist = map.distance(lastPt, ll);
+    if(segDist < 2) return; // ignore GPS jitter under 2m
+    walkDistance += segDist;
+  }
+  walkTrail.push(ll);
+  redrawWalkTrail();
+  updateWalkBadge();
+  const now=Date.now();
+  if(now - walkLastSaveAt > 5000){
+    walkLastSaveAt = now;
+    try{ localStorage.setItem('census-walk-trail', JSON.stringify(walkTrail)); }catch(e){}
+  }
+}
+function redrawWalkTrail(){
+  if(walkLayer) map.removeLayer(walkLayer);
+  if(walkTrail.length<2) return;
+  walkLayer = L.polyline(walkTrail,{color:'#2dd4c8',weight:2,dashArray:'2,7',opacity:.85}).addTo(map);
+}
+function formatDistance(m){ return m<1000 ? Math.round(m)+' m' : (m/1000).toFixed(2)+' km'; }
+function updateWalkBadge(){
+  const badge=document.getElementById('walk-distance-badge');
+  if(walkTracking && walkTrail.length>0){
+    badge.style.display='flex';
+    badge.querySelector('span').textContent=formatDistance(walkDistance);
+  } else if(walkTrail.length>0){
+    badge.style.display='flex';
+    badge.querySelector('span').textContent=formatDistance(walkDistance)+' (paused)';
+  } else {
+    badge.style.display='none';
+  }
+}
+function toggleWalkTracking(){
+  if(!gpsOn){ showStatus('Turn on GPS to track your walk','warn'); return; }
+  walkTracking=!walkTracking;
+  const btn=document.getElementById('walk-ctrl-btn');
+  if(btn) btn.classList.toggle('active-state', walkTracking);
+  updateWalkBadge();
+  showStatus(walkTracking?'Walk tracking started':'Walk tracking paused','ok',1800);
+}
+function clearWalkTrail(){
+  if(!walkTrail.length) return;
+  if(!confirm('Clear the recorded walk trail? This cannot be undone.')) return;
+  walkTrail=[]; walkDistance=0;
+  if(walkLayer){ map.removeLayer(walkLayer); walkLayer=null; }
+  try{ localStorage.removeItem('census-walk-trail'); }catch(e){}
+  updateWalkBadge();
+  showStatus('Walk trail cleared','warn',1800);
+}
+
+/* ════════════════════════════════════════════════════════════
+   MODE MANAGEMENT — selecting a tool never has side effects;
+   the GPS "Mark Here" shortcut lives separately (markHereGPS)
+   ════════════════════════════════════════════════════════════ */
+const MODES = {
+  view:     {icon:'ti-hand-stop',  label:'Pan'},
+  boundary: {icon:'ti-shape',      label:'Draw Boundary'},
+  point:    {icon:'ti-home-plus',  label:'Mark Building'},
+  line:     {icon:'ti-road',       label:'Draw Road / River'},
+  arrow:    {icon:'ti-arrow-move-right', label:'Set Enumeration Order'}
 };
+
 function setMode(m){
-  if(draggingMk){endDragMode(false);}
-  if(editBndFid !== null) cancelBoundaryEdit();
-  if(m !== 'arrow') clearArrowSelection();
+  if(draggingMk) endDragMode(false);
+  if(editBndFid!==null) cancelBoundaryEdit();
+  if(m!=='arrow') clearArrowSelection();
   currentMode=m;
   tempCoords=[];
-  if(tempLayer){map.removeLayer(tempLayer);tempLayer=null;}
-  document.querySelectorAll('.tb[id^=tb-]').forEach(b=>b.classList.remove('on','on-r'));
-  const btn=document.getElementById('tb-'+m);
-  if(btn) btn.classList.add('on');
-  const mdata=MODES[m]||MODES.view;
-  document.getElementById('modeicon').className='ti '+mdata.icon;
-  document.getElementById('modetxt').textContent=mdata.label;
+  if(tempLayer){ map.removeLayer(tempLayer); tempLayer=null; }
 
-  if(m==='point' && gpsOn && youMk){
-    const pos = youMk.getLatLng();
-    openModal('point',[pos.lat,pos.lng]);
+  const mdata = MODES[m] || MODES.view;
+  const fabMain=document.getElementById('fab-main');
+  fabMain.querySelector('i').className='ti '+mdata.icon;
+  fabMain.classList.toggle('mode-active', m!=='view');
+  document.querySelectorAll('.fab-item').forEach(b=>b.classList.toggle('sel', b.dataset.mode===m));
+
+  const pill=document.getElementById('mode-pill');
+  if(m==='view'){
+    pill.classList.remove('on');
+    document.getElementById('drag-hint').classList.remove('on');
+    clearStatus();
     return;
   }
-  if(m==='point') showStatus('Tap map to place feature','ok');
-  else if(m==='line') showStatus('Tap points for road/river — tap last again to finish','ok');
-  else if(m==='arrow') showStatus('Tap first building (FROM)','ok',0);
-  else if(m==='boundary') showStatus('Draw boundary — tap last again to close','ok');
-  else clearStatus();
-  if(m==='view') document.getElementById('drag-hint').classList.remove('on');
+  pill.classList.add('on');
+  document.getElementById('mode-pill-icon').className='ti '+mdata.icon;
+  document.getElementById('mode-pill-text').textContent=mdata.label;
+
+  if(m==='point') showStatus(quickMarkOn ? 'Quick Mark on — tap the map to place instantly' : 'Tap the map to place a building','ok');
+  else if(m==='line') showStatus('Tap points for the road/river — tap the last point again to finish','ok');
+  else if(m==='arrow') showStatus('Tap the first building (FROM)','ok',0);
+  else if(m==='boundary') showStatus('Draw the boundary — tap the last point again to close','ok');
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ARROW SELECTION LOGIC
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function handleArrowSelect(fid){
-  if(currentMode !== 'arrow') return;
-  const f = features.find(x=>x.id===fid);
-  if(!f || f.geometryType !== 'point') return;
-
-  if(arrowFromFid === null){
-    arrowFromFid = fid;
-    highlightArrowFrom(fid);
-    showStatus('Tap second building (TO)','ok',0);
-  } else if(arrowFromFid === fid){
-    clearArrowSelection();
-    showStatus('Selection cancelled – tap first building again','warn',2000);
-  } else {
-    const fromF = features.find(x=>x.id===arrowFromFid);
-    const toF = f;
-    if(fromF && toF){
-      features.push({
-        id: Date.now(),
-        geometryType: 'arrow',
-        coords: [fromF.coords, toF.coords]
-      });
-      saveData();
-      renderAll();
-      showStatus('Arrow created ✓','ok',2000);
-    }
-    clearArrowSelection();
-    setMode('view');
-  }
+function toggleFab(){
+  fabOpen=!fabOpen;
+  document.getElementById('fab-stack').classList.toggle('open', fabOpen);
+  document.getElementById('fab-main').classList.toggle('open-state', fabOpen);
+}
+function pickMode(m){
+  fabOpen=false;
+  document.getElementById('fab-stack').classList.remove('open');
+  document.getElementById('fab-main').classList.remove('open-state');
+  setMode(currentMode===m ? 'view' : m);
 }
 
-function highlightArrowFrom(fid){
-  const mk = allMarkerRefs[fid];
-  if(!mk) return;
-  arrowFromOrigOpacity = mk.options.opacity || 1;
-  mk.setOpacity(0.9);
-  const el = mk.getElement();
-  if(el){
-    const ring = document.createElement('div');
-    ring.className = 'sh-arrow-sel-ring';
-    el.style.position = 'relative';
-    el.appendChild(ring);
-    arrowFromRing = ring;
-  }
+/* ── Quick Mark ── */
+function toggleQuickMark(){
+  quickMarkOn=!quickMarkOn;
+  localStorage.setItem('census-quickmark', quickMarkOn?'1':'0');
+  document.getElementById('qm-toggle').classList.toggle('on', quickMarkOn);
+  showStatus(quickMarkOn?'Quick Mark on — taps place buildings instantly':'Quick Mark off','ok',1800);
+}
+function placeQuickMark(coords){
+  const feature={
+    id:newId(), geometryType:'point', coords,
+    type:qmLast.type, subtype:qmLast.subtype, censusCount:qmLast.censusCount,
+    name:'', note:''
+  };
+  features.push(feature);
+  saveData(); renderAll();
+  haptic(15);
+  showStatus('Marked: '+typeLabel(qmLast.type)+' — tap it anytime to add details','ok',1600);
+}
+function markHereGPS(){
+  if(!gpsOn || !youMk){ showStatus('Turn on GPS first','warn'); return; }
+  const pos=youMk.getLatLng();
+  if(quickMarkOn) placeQuickMark([pos.lat,pos.lng]);
+  else { setMode('view'); openModal('point',[pos.lat,pos.lng]); }
 }
 
-function clearArrowSelection(){
-  if(arrowFromFid !== null){
-    const mk = allMarkerRefs[arrowFromFid];
-    if(mk){
-      mk.setOpacity(arrowFromOrigOpacity);
-      const el = mk.getElement();
-      if(el && arrowFromRing) arrowFromRing.remove();
-    }
-  }
-  arrowFromFid = null;
-  arrowFromRing = null;
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MAP CLICK — DRAWING
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-map.on('click',e=>{
+/* ════════════════════════════════════════════════════════════
+   MAP CLICK — DRAWING
+   ════════════════════════════════════════════════════════════ */
+map.on('click', e=>{
+  if(fabOpen){ toggleFab(); return; }
   closeCtx();
   if(currentMode==='view') return;
   if(currentMode==='arrow') return;
   if(currentMode==='point'){
-    openModal('point',[e.latlng.lat,e.latlng.lng]);
+    if(quickMarkOn) placeQuickMark([e.latlng.lat, e.latlng.lng]);
+    else openModal('point',[e.latlng.lat,e.latlng.lng]);
     return;
   }
-  if(['line','arrow','boundary'].includes(currentMode)){
-    if(currentMode==='arrow') return;
+  if(['line','boundary'].includes(currentMode)){
     if(tempCoords.length>1){
       const last=tempCoords[tempCoords.length-1];
       if(map.distance(last,e.latlng)<12){ finishPath(); return; }
     }
     tempCoords.push([e.latlng.lat,e.latlng.lng]);
     redrawTemp();
-    if(tempCoords.length===1) showStatus('Keep tapping — tap last point again to finish','ok');
+    if(tempCoords.length===1) showStatus('Keep tapping — tap the last point again to finish','ok');
   }
 });
-map.on('dblclick',e=>{
+map.on('dblclick', e=>{
   L.DomEvent.stopPropagation(e);
-  if(['line','arrow','boundary'].includes(currentMode)&&tempCoords.length>1) finishPath();
+  if(currentMode==='arrow' || currentMode==='view') return;
+  if(['line','boundary'].includes(currentMode) && tempCoords.length>1) finishPath();
 });
 function redrawTemp(){
-  if(tempLayer){map.removeLayer(tempLayer);tempLayer=null;}
+  if(tempLayer){ map.removeLayer(tempLayer); tempLayer=null; }
   if(!tempCoords.length) return;
-  if(currentMode==='boundary'){
-    tempLayer=L.polygon(tempCoords,{color:'#fff',weight:3,dashArray:'10,8',fillOpacity:.08}).addTo(map);
-  } else {
-    const col=currentMode==='arrow'?'#ef4444':'#06b6d4';
-    tempLayer=L.polyline(tempCoords,{color:col,weight:3,dashArray:currentMode==='arrow'?'5,5':''}).addTo(map);
-  }
+  if(currentMode==='boundary') tempLayer=L.polygon(tempCoords,{color:'#fff',weight:3,dashArray:'10,8',fillOpacity:.08}).addTo(map);
+  else tempLayer=L.polyline(tempCoords,{color:'#2dd4c8',weight:3}).addTo(map);
 }
 function finishPath(){
-  if(tempCoords.length<2){showStatus('Need at least 2 points','warn');return;}
+  const minPts = currentMode==='boundary' ? 3 : 2;
+  if(tempCoords.length<minPts){ showStatus(`Need at least ${minPts} points for a ${currentMode}`,'warn'); return; }
   if(currentMode==='line') openModal('line',[...tempCoords]);
-  else savePathFeature(currentMode,[...tempCoords]);
-  tempCoords=[]; if(tempLayer){map.removeLayer(tempLayer);tempLayer=null;}
+  else if(currentMode==='boundary') openModal('boundary',[...tempCoords]);
+  tempCoords=[];
+  if(tempLayer){ map.removeLayer(tempLayer); tempLayer=null; }
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// DRAGGABLE MARKER SYSTEM
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/* ════════════════════════════════════════════════════════════
+   ARROW SELECTION
+   ════════════════════════════════════════════════════════════ */
+function handleArrowSelect(fid){
+  if(currentMode!=='arrow') return;
+  const f=features.find(x=>x.id===fid);
+  if(!f || f.geometryType!=='point') return;
+
+  if(arrowFromFid===null){
+    arrowFromFid=fid; highlightArrowFrom(fid);
+    showStatus('Tap second building (TO)','ok',0);
+  } else if(arrowFromFid===fid){
+    clearArrowSelection();
+    showStatus('Selection cancelled – tap the first building again','warn',2000);
+  } else {
+    const fromF=features.find(x=>x.id===arrowFromFid), toF=f;
+    if(fromF && toF){
+      features.push({id:newId(), geometryType:'arrow', coords:[fromF.coords, toF.coords]});
+      saveData(); renderAll();
+      showStatus('Arrow created ✓','ok',2000);
+    }
+    clearArrowSelection();
+    setMode('view');
+  }
+}
+function highlightArrowFrom(fid){
+  const mk=allMarkerRefs[fid]; if(!mk) return;
+  arrowFromOrigOpacity=mk.options.opacity||1;
+  mk.setOpacity(0.9);
+  const el=mk.getElement();
+  if(el){ const ring=document.createElement('div'); ring.className='sh-arrow-sel-ring'; el.style.position='relative'; el.appendChild(ring); arrowFromRing=ring; }
+}
+function clearArrowSelection(){
+  if(arrowFromFid!==null){
+    const mk=allMarkerRefs[arrowFromFid];
+    if(mk){ mk.setOpacity(arrowFromOrigOpacity); const el=mk.getElement(); if(el && arrowFromRing) arrowFromRing.remove(); }
+  }
+  arrowFromFid=null; arrowFromRing=null;
+}
+
+/* ════════════════════════════════════════════════════════════
+   DRAGGABLE MARKER SYSTEM
+   ════════════════════════════════════════════════════════════ */
 function enterDragMode(fid){
   if(draggingMk) endDragMode(false);
   draggingFid=fid;
@@ -1035,208 +1472,193 @@ function enterDragMode(fid){
   draggingMk=mk;
   mk.dragging.enable(); mk.setOpacity(.75);
   const el=mk.getElement();
-  if(el){
-    const ring=document.createElement('div');
-    ring.className='sh-drag-ring'; ring.id='dragring-'+fid;
-    el.style.position='relative'; el.appendChild(ring);
-  }
+  if(el){ const ring=document.createElement('div'); ring.className='sh-drag-ring'; ring.id='dragring-'+fid; el.style.position='relative'; el.appendChild(ring); }
   document.getElementById('drag-hint').classList.add('on');
-  showStatus('Drag marker to exact position, then tap it to confirm','warn',0);
+  showStatus('Drag the marker, then tap it to confirm','warn',0);
   setMode('view'); closeCtx();
 }
 function showDragConfirmPopup(mk,fid){
   const f=features.find(x=>x.id===fid);
   const latlng=mk.getLatLng();
-  const content=`<div class="edit-popup"><b>📍 ${f?esc(f.name||f.type||'Feature'):''}</b>
-    <div style="font-size:9px;color:var(--text3);margin-bottom:6px">${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}</div>
-    <div class="ep-row"><button class="ep-btn pr" onclick="confirmDrag()"><i class="ti ti-check" style="font-size:12px"></i> Confirm</button>
-    <button class="ep-btn" onclick="endDragMode(false);map.closePopup()"><i class="ti ti-x" style="font-size:12px"></i> Cancel</button></div></div>`;
-  mk.bindPopup(content,{closeButton:false,className:'',maxWidth:200}).openPopup();
+  const wrapper=document.createElement('div');
+  wrapper.className='edit-popup';
+  wrapper.innerHTML=`<b>${f?esc(f.name||typeLabel(f.type)):''}</b>
+    <div style="font-size:9px;color:var(--ink3);margin-bottom:6px;font-family:var(--font-mono)">${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}</div>
+    <div class="ep-row">
+      <button class="ep-btn pr" id="drag-confirm-btn"><i class="ti ti-check" style="font-size:12px"></i> Confirm</button>
+      <button class="ep-btn" id="drag-cancel-btn"><i class="ti ti-x" style="font-size:12px"></i> Cancel</button>
+    </div>`;
+  mk.bindPopup(wrapper,{closeButton:false,className:'',maxWidth:200}).openPopup();
+  setTimeout(()=>{
+    const cb=document.getElementById('drag-confirm-btn'), xb=document.getElementById('drag-cancel-btn');
+    if(cb) cb.addEventListener('click', function(){ confirmDrag(); map.closePopup(); });
+    if(xb) xb.addEventListener('click', function(){ endDragMode(false); map.closePopup(); });
+  },0);
 }
-window.confirmDrag=function(){
-  if(!draggingMk||draggingFid==null) return;
+function confirmDrag(){
+  if(!draggingMk || draggingFid==null) return;
   const f=features.find(x=>x.id===draggingFid);
   if(f){ const ll=draggingMk.getLatLng(); f.coords=[ll.lat,ll.lng]; saveData(); }
-  endDragMode(true); map.closePopup(); showStatus('Position updated ✓','ok',2000);
-};
+  endDragMode(true);
+  showStatus('Position updated ✓','ok',2000);
+}
 function endDragMode(confirmed){
   if(!draggingMk) return;
   draggingMk.dragging.disable(); draggingMk.setOpacity(1);
-  const el=draggingMk.getElement(); if(el){const ring=el.querySelector('.sh-drag-ring');if(ring)ring.remove();}
+  const el=draggingMk.getElement(); if(el){ const ring=el.querySelector('.sh-drag-ring'); if(ring) ring.remove(); }
   draggingMk=null; draggingFid=null;
   document.getElementById('drag-hint').classList.remove('on');
-  if(!confirmed) renderAll(); clearStatus();
+  if(!confirmed) renderAll();
+  clearStatus();
 }
 function snapToGPS(fid){
-  if(!youMk){showStatus('GPS not active','err');return;}
+  if(!youMk){ showStatus('GPS not active','err'); return; }
   const f=features.find(x=>x.id===fid);
-  if(!f||f.geometryType!=='point') return;
+  if(!f || f.geometryType!=='point') return;
   const ll=youMk.getLatLng(); f.coords=[ll.lat,ll.lng];
-  saveData(); renderAll(); showStatus('Snapped to GPS ✓','ok',2000);
+  saveData(); renderAll();
+  showStatus('Snapped to GPS ✓','ok',2000);
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// BOUNDARY EDITING
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/* ════════════════════════════════════════════════════════════
+   BOUNDARY EDITING
+   ════════════════════════════════════════════════════════════ */
 function ctxEditShape(){
   closeCtx();
-  if(ctxFid == null) return;
-  const f = features.find(x=>x.id===ctxFid);
+  if(ctxFid==null) return;
+  const f=features.find(x=>x.id===ctxFid);
   if(!f || f.geometryType!=='boundary') return;
   enterBoundaryEdit(ctxFid);
 }
-
 function enterBoundaryEdit(fid){
-  if(editBndFid !== null) cancelBoundaryEdit();
-  const f = features.find(x=>x.id===fid);
-  if(!f) return;
-  editBndFid = fid;
-  editBndCoords = f.coords.map(c=>[...c]);
+  if(editBndFid!==null) cancelBoundaryEdit(true);
+  const f=features.find(x=>x.id===fid); if(!f) return;
+  editBndFid=fid;
+  editBndCoords=f.coords.map(c=>[...c]);
   document.getElementById('bnd-edit-bar').classList.add('on');
-
-  editBndMkGrp = L.featureGroup().addTo(map);
+  editBndMkGrp=L.featureGroup().addTo(map);
   editBndCoords.forEach((coord,idx)=>{
-    const marker = L.circleMarker(coord, {radius:5, color:'#fff', fillColor:'#f59e0b', fillOpacity:1, weight:2, draggable:true})
-      .addTo(editBndMkGrp);
-    marker.on('drag', function(e){
-      const pos = e.target.getLatLng();
-      editBndCoords[idx] = [pos.lat, pos.lng];
-      redrawBoundaryEditLine();
-    });
+    const marker=L.circleMarker(coord,{radius:6,color:'#fff',fillColor:'#f5a623',fillOpacity:1,weight:2,draggable:true}).addTo(editBndMkGrp);
+    marker.on('drag', function(e){ const pos=e.target.getLatLng(); editBndCoords[idx]=[pos.lat,pos.lng]; redrawBoundaryEditLine(); });
   });
   redrawBoundaryEditLine();
   map.on('click', onBoundaryEditClick);
-  showStatus('Tap map to add new vertices (after last), drag to move','ok',0);
+  showStatus('Tap to add vertices, drag to move','ok',0);
   setMode('view');
 }
-
 function onBoundaryEditClick(e){
-  if(editBndFid === null) return;
-  const ll = [e.latlng.lat, e.latlng.lng];
+  if(editBndFid===null) return;
+  const ll=[e.latlng.lat,e.latlng.lng];
   editBndCoords.push(ll);
-  const marker = L.circleMarker(ll, {radius:5, color:'#fff', fillColor:'#f59e0b', fillOpacity:1, weight:2, draggable:true})
-    .addTo(editBndMkGrp);
-  const idx = editBndCoords.length - 1;
-  marker.on('drag', function(e){
-    const pos = e.target.getLatLng();
-    editBndCoords[idx] = [pos.lat, pos.lng];
-    redrawBoundaryEditLine();
-  });
+  const idx=editBndCoords.length-1;
+  const marker=L.circleMarker(ll,{radius:6,color:'#fff',fillColor:'#f5a623',fillOpacity:1,weight:2,draggable:true}).addTo(editBndMkGrp);
+  marker.on('drag', function(e){ const pos=e.target.getLatLng(); editBndCoords[idx]=[pos.lat,pos.lng]; redrawBoundaryEditLine(); });
   redrawBoundaryEditLine();
   showStatus(`Point added (${editBndCoords.length} total)`,'ok',1000);
 }
-
 function redrawBoundaryEditLine(){
-  editBndMkGrp.eachLayer(layer=>{
-    if(layer instanceof L.Polyline) editBndMkGrp.removeLayer(layer);
-  });
-  if(editBndCoords.length > 1){
-    L.polyline(editBndCoords, {color:'#fff', dashArray:'8,8', weight:2}).addTo(editBndMkGrp);
-  }
+  editBndMkGrp.eachLayer(layer=>{ if(layer instanceof L.Polyline && !(layer instanceof L.CircleMarker)) editBndMkGrp.removeLayer(layer); });
+  if(editBndCoords.length>1) L.polyline(editBndCoords,{color:'#fff',dashArray:'8,8',weight:2}).addTo(editBndMkGrp);
 }
-
 function saveBoundaryEdit(){
-  if(editBndFid === null) return;
-  const f = features.find(x=>x.id===editBndFid);
-  if(f && editBndCoords.length > 2){
-    f.coords = [...editBndCoords];
-    saveData();
-    showStatus('Boundary updated ✓','ok',2000);
-  } else {
-    showStatus('Need at least 3 points for a polygon','warn');
-    return;
-  }
+  if(editBndFid===null) return;
+  const f=features.find(x=>x.id===editBndFid);
+  if(f && editBndCoords.length>2){ f.coords=[...editBndCoords]; saveData(); showStatus('Boundary updated ✓','ok',2000); }
+  else { showStatus('Need at least 3 points for a polygon','warn'); return; }
   cancelBoundaryEdit(true);
   renderAll();
 }
-
 function cancelBoundaryEdit(keepMapQuiet=false){
-  if(editBndFid !== null){
+  if(editBndFid!==null){
     map.off('click', onBoundaryEditClick);
     if(editBndMkGrp) map.removeLayer(editBndMkGrp);
-    editBndFid = null;
-    editBndCoords = null;
-    editBndMkGrp = null;
+    editBndFid=null; editBndCoords=null; editBndMkGrp=null;
     document.getElementById('bnd-edit-bar').classList.remove('on');
     if(!keepMapQuiet) showStatus('Boundary edit cancelled','warn',2000);
   }
 }
 
-const origDeleteFeature = deleteFeature;
-deleteFeature = function(fid){
-  if(editBndFid === fid) cancelBoundaryEdit(true);
-  if(arrowFromFid === fid) clearArrowSelection();
-  origDeleteFeature(fid);
-};
-const origUndoLast = undoLast;
-undoLast = function(){
-  if(editBndFid !== null) cancelBoundaryEdit(true);
-  clearArrowSelection();
-  origUndoLast();
-};
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// CONTEXT MENU
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/* ════════════════════════════════════════════════════════════
+   CONTEXT MENU
+   ════════════════════════════════════════════════════════════ */
 function openCtxFor(fid,e){
   ctxFid=fid;
   const f=features.find(x=>x.id===fid);
-  const isPoint=f&&f.geometryType==='point';
-  const isBoundary = f && f.geometryType==='boundary';
+  const isPoint=f && f.geometryType==='point';
+  const isBoundary=f && f.geometryType==='boundary';
+  const isArrow=f && f.geometryType==='arrow';
   document.getElementById('ctx-drag').style.display=isPoint?'flex':'none';
   document.getElementById('ctx-snap').style.display=isPoint?'flex':'none';
   document.getElementById('ctx-shape').style.display=isBoundary?'flex':'none';
-  document.getElementById('ctx-edit').style.display='flex';
+  document.getElementById('ctx-edit').style.display=(!isArrow)?'flex':'none';
+  document.getElementById('ctx-stage2').style.display=isPoint?'flex':'none';
+  if(isPoint){
+    document.getElementById('ctx-stage2').innerHTML = f.stage2
+      ? '<i class="ti ti-pencil"></i>Edit Stage 2 Data'
+      : '<i class="ti ti-clipboard-list"></i>Enter Stage 2 Data';
+  }
   const mc=map.getContainer().getBoundingClientRect();
-  const x=Math.min((e.clientX||e.pageX)-mc.left, mc.width-185);
-  const y=Math.min((e.clientY||e.pageY)-mc.top, mc.height-200);
+  const x=Math.min((e.clientX||e.pageX)-mc.left, mc.width-188);
+  const y=Math.min((e.clientY||e.pageY)-mc.top, mc.height-210);
   const m=document.getElementById('ctx'); m.style.left=x+'px'; m.style.top=y+'px'; m.classList.add('open');
 }
-function closeCtx(){document.getElementById('ctx').classList.remove('open')}
-function ctxEdit(){closeCtx();if(ctxFid!=null)editFeature(ctxFid);}
-function ctxStartDrag(){closeCtx();if(ctxFid!=null)enterDragMode(ctxFid);}
-function ctxSnapGPS(){closeCtx();if(ctxFid!=null)snapToGPS(ctxFid);}
-function ctxDelete(){closeCtx();if(ctxFid!=null)deleteFeature(ctxFid);}
-let lpTimer=null;
-map.getContainer().addEventListener('touchstart',ev=>{
-  lpTimer=setTimeout(()=>{ if(currentMode==='view') showStatus('Long-press: use toolbar','ok',2000); },700);
-},{passive:true});
-map.getContainer().addEventListener('touchend',()=>clearTimeout(lpTimer),{passive:true});
-map.getContainer().addEventListener('touchmove',()=>clearTimeout(lpTimer),{passive:true});
-map.on('click',closeCtx);
+function closeCtx(){ document.getElementById('ctx').classList.remove('open'); ctxFid=null; }
+function ctxEdit(){ const fid=ctxFid; closeCtx(); if(fid!=null) editFeature(fid); }
+function ctxStartDrag(){ const fid=ctxFid; closeCtx(); if(fid!=null) enterDragMode(fid); }
+function ctxSnapGPS(){ const fid=ctxFid; closeCtx(); if(fid!=null) snapToGPS(fid); }
+function ctxDelete(){ const fid=ctxFid; closeCtx(); if(fid!=null) deleteFeature(fid); }
+function ctxStage2(){ const fid=ctxFid; closeCtx(); if(fid!=null) openStage2(fid); }
+map.on('click', closeCtx);
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MODAL — same as before
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/* ════════════════════════════════════════════════════════════
+   MODAL — point / line / boundary / stage2
+   Stage2 save NEVER touches coords or geometryType.
+   ════════════════════════════════════════════════════════════ */
 function onFeatureTypeChange(){
-  const type = document.getElementById('pt-type').value;
-  const isHouse = type === 'pucca-house' || type === 'kutcha-house';
-  document.getElementById('fg-usage').style.display = isHouse ? 'block' : 'none';
-  document.getElementById('fg-census').style.display = isHouse ? 'block' : 'none';
+  const type=document.getElementById('pt-type').value;
+  const house=isHouseType(type);
+  document.getElementById('fg-usage').style.display=house?'block':'none';
+  document.getElementById('fg-census').style.display=house?'block':'none';
 }
+function openModal(type, coords, existingFeature=null){
+  pendingData={type, coords};
+  editingId = existingFeature ? existingFeature.id : null;
+  suggestions.classList.remove('on');
 
-function openModal(type,coords,existingFeature=null){
-  pendingData={type,coords};
-  editingId=existingFeature?existingFeature.id:null;
   document.getElementById('form-point').style.display = type==='point'?'block':'none';
   document.getElementById('form-line').style.display = type==='line'?'block':'none';
+  document.getElementById('form-stage2').style.display = type==='stage2'?'block':'none';
+  document.getElementById('form-boundary').style.display = type==='boundary'?'block':'none';
 
   if(type==='point'){
-    const ptype = existingFeature?existingFeature.type:'pucca-house';
-    document.getElementById('pt-type').value = ptype;
-    document.getElementById('pt-subtype').value = existingFeature?existingFeature.subtype||'res':'res';
-    document.getElementById('pt-name').value = existingFeature?existingFeature.name||'':'';
-    document.getElementById('pt-census').value = existingFeature?existingFeature.censusCount||1:1;
-    document.getElementById('pt-note').value = existingFeature?existingFeature.note||'':'';
+    document.getElementById('pt-type').value = existingFeature?existingFeature.type:'pucca-house';
+    document.getElementById('pt-subtype').value = existingFeature?(existingFeature.subtype||'res'):'res';
+    document.getElementById('pt-name').value = existingFeature?(existingFeature.name||''):'';
+    document.getElementById('pt-census').value = existingFeature?(existingFeature.censusCount||1):1;
+    document.getElementById('pt-note').value = existingFeature?(existingFeature.note||''):'';
     onFeatureTypeChange();
   }
   if(type==='line'){
     document.getElementById('ln-type').value = existingFeature?existingFeature.type:'good-road';
-    document.getElementById('ln-name').value = existingFeature?existingFeature.name||'':'';
+    document.getElementById('ln-name').value = existingFeature?(existingFeature.name||''):'';
   }
+  if(type==='stage2'){
+    const s2 = existingFeature ? (existingFeature.stage2Data||{}) : {};
+    document.getElementById('s2-head').value = s2.head||'';
+    document.getElementById('s2-members').value = s2.members||0;
+    document.getElementById('s2-remarks').value = s2.remarks||'';
+    document.getElementById('s2-complete').checked = !!(existingFeature && existingFeature.stage2);
+  }
+  if(type==='boundary'){
+    document.getElementById('bnd-name').value = existingFeature?(existingFeature.name||''):'';
+    document.getElementById('bnd-note').value = existingFeature?(existingFeature.note||''):'';
+  }
+
+  const iconMap={point:'home',stage2:'clipboard-list',line:'road',boundary:'shape'};
+  const labelMap={point:'New Building',stage2:'Stage 2 Data',line:'New Road / River',boundary:'New Boundary'};
   document.getElementById('modal-title').innerHTML =
-    `<i class="ti ti-${type==='point'?'home':'road'}" style="color:var(--accent)"></i>`
-    +(editingId?'Edit Feature':'New Feature');
+    `<i class="ti ti-${iconMap[type]||'home'}" style="color:var(--signal)"></i>`
+    + (editingId ? (type==='stage2'?'Stage 2 Data':'Edit Feature') : (labelMap[type]||'New Feature'));
   document.getElementById('moverlay').classList.add('open');
   setTimeout(()=>document.querySelector('#modal input[type=text]')?.focus(),200);
 }
@@ -1246,242 +1668,450 @@ function closeModal(){
 }
 function saveFeature(){
   if(!pendingData) return;
-  const {type,coords}=pendingData;
+  const {type, coords} = pendingData;
   let feature;
   if(editingId){
     feature=features.find(f=>f.id===editingId);
+    if(!feature){ closeModal(); return; }
   } else {
-    feature={id:Date.now(),geometryType:type};
+    feature={id:newId()};
     features.push(feature);
   }
-  feature.coords=coords;
-  feature.geometryType = type==='point'?'point':'line';
 
   if(type==='point'){
-    feature.type = document.getElementById('pt-type').value;
-    if(feature.type==='pucca-house'||feature.type==='kutcha-house'){
-      feature.subtype = document.getElementById('pt-subtype').value;
-      feature.censusCount = parseInt(document.getElementById('pt-census').value)||1;
+    feature.geometryType='point';
+    if(coords) feature.coords=coords;
+    feature.type=document.getElementById('pt-type').value;
+    if(isHouseType(feature.type)){
+      feature.subtype=document.getElementById('pt-subtype').value;
+      feature.censusCount=Math.max(1, parseInt(document.getElementById('pt-census').value)||1);
     } else {
-      feature.subtype = 'nr';
-      feature.censusCount = 0;
+      feature.subtype='nr';
+      feature.censusCount=0;
     }
-    feature.name = document.getElementById('pt-name').value.trim();
-    feature.note = document.getElementById('pt-note').value.trim();
-  } else {
-    feature.type = document.getElementById('ln-type').value;
-    feature.name = document.getElementById('ln-name').value.trim();
+    feature.name=document.getElementById('pt-name').value.trim();
+    feature.note=document.getElementById('pt-note').value.trim();
+    qmLast = {type:feature.type, subtype:feature.subtype, censusCount:feature.censusCount||1};
+
+  } else if(type==='line'){
+    feature.geometryType='line';
+    if(coords) feature.coords=coords;
+    feature.type=document.getElementById('ln-type').value;
+    feature.name=document.getElementById('ln-name').value.trim();
+
+  } else if(type==='stage2'){
+    // Intentionally does not touch feature.coords or feature.geometryType.
+    feature.stage2Data={
+      head:document.getElementById('s2-head').value.trim(),
+      members:parseInt(document.getElementById('s2-members').value)||0,
+      remarks:document.getElementById('s2-remarks').value.trim()
+    };
+    feature.stage2=document.getElementById('s2-complete').checked;
+
+  } else if(type==='boundary'){
+    feature.geometryType='boundary';
+    if(coords) feature.coords=coords;
+    feature.name=document.getElementById('bnd-name').value.trim();
+    feature.note=document.getElementById('bnd-note').value.trim();
   }
+
   saveData(); closeModal(); renderAll();
-  showStatus((editingId?'Updated':'Saved')+' — drag to reposition anytime','ok',2500);
-}
-function savePathFeature(gtype,coords){
-  features.push({id:Date.now(),geometryType:gtype,coords});
-  saveData(); setMode('view'); renderAll();
+  haptic(12);
+  showStatus((editingId?'Updated':'Saved')+' ✓','ok',2200);
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// EDIT / DELETE (fixed undo index)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/* ════════════════════════════════════════════════════════════
+   EDIT / DELETE / UNDO STACK
+   ════════════════════════════════════════════════════════════ */
 function editFeature(fid){
   const f=features.find(x=>x.id===fid); if(!f) return;
-  if(f.geometryType==='boundary'){
-    showStatus('Boundary properties coming soon. Use "Edit shape" to adjust vertices.','ok',3000);
-    return;
-  }
-  const type=f.geometryType==='point'?'point':'line';
-  openModal(type,f.coords,f);
+  if(f.geometryType==='boundary'){ openModal('boundary', f.coords, f); return; }
+  const type = f.geometryType==='point' ? 'point' : 'line';
+  openModal(type, f.coords, f);
+}
+function openStage2(fid){
+  const f=features.find(x=>x.id===fid);
+  if(f && f.geometryType==='point') openModal('stage2', null, f);
 }
 function deleteFeature(fid){
   const idx=features.findIndex(x=>x.id===fid); if(idx<0) return;
   if(draggingFid===fid) endDragMode(false);
-  if(editBndFid === fid) cancelBoundaryEdit(true);
-  if(arrowFromFid === fid) clearArrowSelection();
-  lastDeleted={feature:{...features[idx]},idx};  // property name 'idx'
-  features.splice(idx,1); saveData(); renderAll(); showUndoBar('Feature deleted');
+  if(editBndFid===fid) cancelBoundaryEdit(true);
+  if(arrowFromFid===fid) clearArrowSelection();
+  pushUndo({feature:{...features[idx]}, idx});
+  features.splice(idx,1);
+  saveData(); renderAll();
+  showUndoBar('Feature deleted');
 }
 function undoLast(){
-  if(editBndFid !== null) cancelBoundaryEdit(true);
+  if(editBndFid!==null) cancelBoundaryEdit(true);
   clearArrowSelection();
   if(!features.length) return showStatus('Nothing to undo','warn');
-  const f=features.pop(); lastDeleted={feature:f}; saveData(); renderAll(); showUndoBar('Last feature removed');
+  const f=features.pop();
+  pushUndo({feature:f});
+  saveData(); renderAll();
+  showUndoBar('Last feature removed');
 }
+function pushUndo(entry){ undoStack.push(entry); if(undoStack.length>UNDO_MAX) undoStack.shift(); }
 function undoDelete(){
-  if(!lastDeleted) return;
-  // Bug fix: use 'idx' (the property name we set) instead of 'idxa'
-  if(lastDeleted.idx != null) features.splice(lastDeleted.idx,0,lastDeleted.feature);
-  else features.push(lastDeleted.feature);
-  lastDeleted=null; saveData(); renderAll(); dismissUndo(); showStatus('Restored ✓','ok',1500);
+  if(!undoStack.length) return;
+  const last=undoStack.pop();
+  if(last.idx!=null) features.splice(last.idx,0,last.feature);
+  else features.push(last.feature);
+  saveData(); renderAll(); dismissUndo();
+  showStatus('Restored ✓','ok',1500);
 }
+let undoTimer=null;
 function showUndoBar(msg){
   document.getElementById('undo-msg').textContent=msg;
   document.getElementById('undo-bar').classList.add('on');
   clearTimeout(undoTimer); undoTimer=setTimeout(dismissUndo,5000);
 }
-function dismissUndo(){
-  document.getElementById('undo-bar').classList.remove('on');
-  clearTimeout(undoTimer);
+function dismissUndo(){ document.getElementById('undo-bar').classList.remove('on'); clearTimeout(undoTimer); }
+
+function confirmDeleteFromList(fid){
+  const f=features.find(x=>x.id===fid); if(!f) return;
+  if(confirm('Delete '+(f.name||typeLabel(f.type))+'? You can undo this right after.')){
+    deleteFeature(fid);
+    renderActiveTabContent();
+  }
+}
+function attachRowLongPress(rowEl, fid){
+  let timer=null;
+  const start=()=>{ timer=setTimeout(()=>{ haptic(20); confirmDeleteFromList(fid); },600); };
+  const cancel=()=>clearTimeout(timer);
+  rowEl.addEventListener('touchstart', start, {passive:true});
+  rowEl.addEventListener('touchend', cancel, {passive:true});
+  rowEl.addEventListener('touchmove', cancel, {passive:true});
+  rowEl.addEventListener('mousedown', start);
+  rowEl.addEventListener('mouseup', cancel);
+  rowEl.addEventListener('mouseleave', cancel);
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// RENDER — including arrow lines
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/* ════════════════════════════════════════════════════════════
+   MAP RENDER
+   ════════════════════════════════════════════════════════════ */
 function renderAll(){
   mkLayer.clearLayers();
   allMarkerRefs={};
-  let bldg=0,road=0,bndy=0;
 
   features.filter(f=>f.geometryType==='boundary').forEach(f=>{
-    const poly = L.polygon(f.coords,{color:'#fff',weight:3,fillOpacity:.05,dashArray:'10,8'}).addTo(mkLayer);
-    bndy++;
-    const center = L.latLngBounds(f.coords).getCenter();
-    L.tooltip({permanent:true, className:'map-label', direction:'center'})
-      .setLatLng(center)
-      .setContent('📐 '+(f.name||'Boundary'))
-      .addTo(mkLayer);
+    L.polygon(f.coords,{color:'#fff',weight:3,fillOpacity:.05,dashArray:'10,8'}).addTo(mkLayer);
+    const center=L.latLngBounds(f.coords).getCenter();
+    L.tooltip({permanent:true,className:'map-label',direction:'center'}).setLatLng(center).setContent(f.name||'Boundary').addTo(mkLayer);
   });
 
   features.filter(f=>f.geometryType==='line').forEach(f=>{
-    let style = {weight:4,color:'#fff'};
+    let style={weight:4,color:'#fff'};
     if(f.type==='bad-road') style.dashArray='8,6';
     if(f.type==='pathway'){ style.weight=2; style.dashArray='4,4'; style.color='#a9a8c0'; }
     if(f.type==='railway') style.dashArray='10,8';
-    if(f.type==='river'){ style.weight=4; style.color='#3b82f6'; }
-    if(f.type==='canal'){ style.weight=4; style.color='#06b6d4'; }
+    if(f.type==='river'){ style.weight=4; style.color='#5b7cfa'; }
+    if(f.type==='canal'){ style.weight=4; style.color='#2dd4c8'; }
     const poly=L.polyline(f.coords,style).addTo(mkLayer);
-    road++;
-    const label = f.name || (f.type==='river'?'River':f.type==='canal'?'Canal':f.type==='railway'?'Railway':f.type==='pathway'?'Path':'Road');
+    const label=f.name || (f.type==='river'?'River':f.type==='canal'?'Canal':f.type==='railway'?'Railway':f.type==='pathway'?'Path':'Road');
     const mid=f.coords[Math.floor(f.coords.length/2)];
     L.tooltip({permanent:true,className:'map-label',direction:'center'}).setLatLng(mid).setContent(label).addTo(mkLayer);
     attachPolyEvents(poly,f.id);
   });
 
   features.filter(f=>f.geometryType==='arrow').forEach(f=>{
-    const poly=L.polyline(f.coords,{color:'#ef4444',weight:2,dashArray:'5,5'}).addTo(mkLayer);
+    const poly=L.polyline(f.coords,{color:'#fb4570',weight:2,dashArray:'5,5'}).addTo(mkLayer);
     try{
-      L.polylineDecorator(poly,{
-        patterns:[{offset:'10%',repeat:'50px',symbol:L.Symbol.arrowHead({pixelSize:12,polygon:false,pathOptions:{stroke:true,color:'#ef4444',weight:3}})}]
-      }).addTo(mkLayer);
+      L.polylineDecorator(poly,{patterns:[{offset:'10%',repeat:'50px',symbol:L.Symbol.arrowHead({pixelSize:12,polygon:false,pathOptions:{stroke:true,color:'#fb4570',weight:3}})}]}).addTo(mkLayer);
     }catch(e){}
     attachPolyEvents(poly,f.id);
   });
 
   features.filter(f=>f.geometryType==='point').forEach(f=>{
-    bldg++;
-    let html='';
-    let iconSize=[22,22];
-    let isHouse = (f.type==='pucca-house'||f.type==='kutcha-house');
-    if(isHouse){
-      const isNR = f.subtype==='nr';
-      if(f.type==='pucca-house') html=`<div class="census-wrap"><div class="sh-pucca${isNR?' nr':''}"></div></div>`;
-      else html=`<div class="census-wrap"><div class="sh-kutcha${isNR?' nr':''}"></div></div>`;
+    let html='', iconSize=[22,22];
+    const house=isHouseType(f.type);
+    if(house){
+      const isNR=f.subtype==='nr';
+      html = f.type==='pucca-house'
+        ? `<div class="census-wrap"><div class="sh-pucca${isNR?' nr':''}"></div></div>`
+        : `<div class="census-wrap"><div class="sh-kutcha${isNR?' nr':''}"></div></div>`;
     } else {
-      const mapping = {
-        'temple':            {letter:'T', color:'#f97316'},
-        'mosque':            {letter:'M', color:'#10b981'},
-        'church':            {letter:'C', color:'#ef4444'},
-        'gurudwara':         {letter:'G', color:'#eab308'},
-        'school':            {letter:'S', color:'#8b5cf6'},
-        'dispensary':        {letter:'D', color:'#ec4899'},
-        'panchayat-office':  {letter:'P', color:'#14b8a6'},
-        'post-office':       {letter:'PO',color:'#78716c'},
-        'well-handpump':     {letter:'W', color:'#06b6d4'},
-        'pond':              {letter:'P', color:'#3b82f6'},
-        'other-institution': {letter:'I', color:'#a855f7'},
-        'other-building':    {letter:'B', color:'#9ca3af'}
-      };
-      const m = mapping[f.type] || {letter:'?',color:'#6b7280'};
+      const m=INSTITUTION_META[f.type]||{letter:'?',color:'#6b7280'};
       html=`<div class="census-wrap"><div class="sh-inst" style="background:${m.color};width:20px;height:20px;border-radius:50%;font-size:9px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;">${m.letter}</div></div>`;
       iconSize=[24,24];
     }
+    if(f.stage2) html += '<div class="stage2-badge"></div>';
     const icon=L.divIcon({className:'',html,iconSize,iconAnchor:[iconSize[0]/2,iconSize[1]/2]});
     const mk=L.marker(f.coords,{icon,draggable:false,zIndexOffset:100}).addTo(mkLayer);
     allMarkerRefs[f.id]=mk;
 
-    let labelText = '';
-    if(f.name) labelText = f.name;
-    if(f.censusCount && f.censusCount>1) labelText = labelText ? labelText+` (${f.censusCount})` : `(${f.censusCount})`;
-    else if(f.censusCount===1 && !f.name) labelText = '1';
-    if(!labelText){
-      if(isHouse) labelText = '🏠';
-      else {
-        const abbr = {
-          'temple':'Temple','mosque':'Mosque','church':'Church','gurudwara':'Gurudwara',
-          'school':'School','dispensary':'Dispensary','panchayat-office':'Panchayat','post-office':'Post Office',
-          'well-handpump':'Well','pond':'Pond','other-institution':'Institution','other-building':'Building'
-        };
-        labelText = abbr[f.type] || '📍';
-      }
-    }
+    let labelText='';
+    if(f.name){ labelText=f.name; if(f.censusCount && f.censusCount>1) labelText+=` (${f.censusCount})`; }
+    else if(house){ labelText = (f.censusCount && f.censusCount>1) ? `(${f.censusCount})` : '1'; }
+    else { labelText = typeLabel(f.type); }
     mk.bindTooltip(labelText,{permanent:true,direction:'right',className:'map-label',offset:[12,0]});
 
-    mk.on('click',function(e){
+    mk.on('click', function(e){
       L.DomEvent.stopPropagation(e);
-      if(currentMode==='arrow'){
-        handleArrowSelect(f.id);
-        return;
-      }
+      if(currentMode==='arrow'){ handleArrowSelect(f.id); return; }
       if(draggingFid===f.id){ showDragConfirmPopup(mk,f.id); return; }
-      openCtxFor(f.id,e.originalEvent);
+      openCtxFor(f.id, e.originalEvent);
     });
-    mk.on('contextmenu',function(e){
+    mk.on('contextmenu', function(e){
       L.DomEvent.stopPropagation(e);
       if(currentMode==='arrow') return;
-      openCtxFor(f.id,e.originalEvent);
+      openCtxFor(f.id, e.originalEvent);
     });
     let mkLp=null;
-    mk.on('mousedown touchstart',function(ev){
+    mk.on('mousedown touchstart', function(ev){
       if(currentMode==='arrow') return;
-      mkLp=setTimeout(()=>{ openCtxFor(f.id,ev.originalEvent?.touches?.[0]||ev.originalEvent||ev); },600);
+      mkLp=setTimeout(()=>{ openCtxFor(f.id, ev.originalEvent?.touches?.[0] || ev.originalEvent || ev); },600);
     });
-    mk.on('mouseup touchend mousemove touchmove',()=>clearTimeout(mkLp));
+    mk.on('mouseup touchend mousemove touchmove', ()=>clearTimeout(mkLp));
   });
 
-  document.getElementById('cnt-bldg').textContent=bldg;
-  document.getElementById('cnt-road').textContent=road;
-  document.getElementById('cnt-bndy').textContent=bndy;
+  renderActiveTabContent();
+  updateBackupReminderUI();
 }
 function attachPolyEvents(poly,fid){
-  poly.on('click',function(e){
-    L.DomEvent.stopPropagation(e);
-    if(currentMode==='arrow') return;
-    openCtxFor(fid,e.originalEvent);
-  });
-  poly.on('contextmenu',function(e){
-    L.DomEvent.stopPropagation(e);
-    if(currentMode==='arrow') return;
-    openCtxFor(fid,e.originalEvent);
-  });
+  poly.on('click', function(e){ L.DomEvent.stopPropagation(e); if(currentMode!=='arrow') openCtxFor(fid,e.originalEvent); });
+  poly.on('contextmenu', function(e){ L.DomEvent.stopPropagation(e); if(currentMode!=='arrow') openCtxFor(fid,e.originalEvent); });
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// FIT TO AREA & PRINT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function fitToArea(){
-  const bounds = L.latLngBounds([]);
-  const boundaries = features.filter(f=>f.geometryType==='boundary');
-  if(boundaries.length) boundaries.forEach(f=>f.coords.forEach(c=>bounds.extend(c)));
-  else {
-    const allCoords = features.flatMap(f=>f.geometryType==='point'?[f.coords]:f.coords);
-    if(!allCoords.length){showStatus('No features','warn');return}
-    allCoords.forEach(c=>bounds.extend(c));
+/* ════════════════════════════════════════════════════════════
+   TAB SYSTEM
+   ════════════════════════════════════════════════════════════ */
+function switchTab(name){
+  if(!TABS.includes(name)) return;
+  activeTab=name;
+  TABS.forEach(t=>{
+    document.getElementById('screen-'+t).classList.toggle('active', t===name);
+    document.getElementById('tabbtn-'+t).classList.toggle('active', t===name);
+  });
+  renderActiveTabContent();
+  if(name!=='map'){
+    if(currentMode!=='view') setMode('view');
+    closeSearchPanel();
+  } else {
+    setTimeout(()=>map.invalidateSize(), 60);
   }
-  map.fitBounds(bounds,{padding:[20,20],maxZoom:20}); showStatus('Area focused ✓','ok',2000);
 }
-function printMap(){
-  document.body.classList.add('printing');
-  window.print();
-  document.body.classList.remove('printing');
+function renderActiveTabContent(){
+  if(activeTab==='buildings') renderBuildingsTab();
+  if(activeTab==='stage2') renderStage2Tab();
+  if(activeTab==='stats') renderStatsTab();
+  if(activeTab==='backup') renderBackupTab();
 }
-const printStyle=document.createElement('style');
-printStyle.textContent=`@media print{body.printing #header,body.printing #toolbar,body.printing #status,body.printing #drag-hint,body.printing #ctx,body.printing #undo-bar,body.printing #moverlay,body.printing #geocontrols,body.printing #maptype,body.printing #bnd-edit-bar{display:none!important}#map{position:absolute;top:0;left:0;bottom:0;right:0}}`;
-document.head.appendChild(printStyle);
+function emptyState(icon,title,body){
+  return `<div class="empty-state"><i class="ti ${icon}"></i><div class="es-title">${esc(title)}</div><div class="es-body">${esc(body)}</div></div>`;
+}
+function locateFeature(fid){
+  const f=features.find(x=>x.id===fid); if(!f) return;
+  switchTab('map');
+  setTimeout(()=>{
+    const center = f.geometryType==='point' ? f.coords : L.latLngBounds(f.coords).getCenter();
+    map.flyTo(center, Math.max(map.getZoom(),18), {duration:0.8});
+    if(f.geometryType==='point') flashMarker(fid);
+  },80);
+}
+function flashMarker(fid){
+  const mk=allMarkerRefs[fid]; if(!mk) return;
+  const el=mk.getElement(); if(!el) return;
+  el.classList.add('flash-highlight');
+  setTimeout(()=>el.classList.remove('flash-highlight'),1600);
+}
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// IMAGE OVERLAY
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/* ── Buildings tab ── */
+function onBuildingsSearch(v){ buildingsSearchQuery=v; renderBuildingsTab(); }
+function setBuildingsTypeFilter(v){
+  buildingsTypeFilter=v;
+  document.querySelectorAll('#buildings-type-chips .chip').forEach(c=>c.classList.toggle('active', c.dataset.val===v));
+  renderBuildingsTab();
+}
+function buildingRowHTML(f){
+  const house=isHouseType(f.type);
+  const filled = f.stage2Data && (f.stage2Data.head || f.stage2Data.members || f.stage2Data.remarks);
+  const dotClass = f.stage2 ? 's2-dot done' : (filled ? 's2-dot partial' : 's2-dot pending');
+  const sub = house ? ((f.subtype==='nr'?'Non-residential':'Residential') + (f.censusCount>1?' · '+f.censusCount+' houses':'')) : typeLabel(f.type);
+  return `<div class="brow" data-fid="${f.id}">
+    <div class="brow-main">
+      <div class="brow-icon" style="background:${typeColor(f.type)}">${typeGlyphHTML(f)}</div>
+      <div class="brow-body">
+        <div class="brow-title">${esc(f.name || ('Unnamed '+typeLabel(f.type)))}</div>
+        <div class="brow-sub">${esc(sub)}</div>
+      </div>
+      <div class="${dotClass}"></div>
+    </div>
+    <button class="brow-edit" title="Edit details"><i class="ti ti-pencil"></i></button>
+    <button class="brow-s2" title="Stage 2 data"><i class="ti ti-clipboard-list"></i></button>
+  </div>`;
+}
+function renderBuildingsTab(){
+  const list=document.getElementById('buildings-list');
+  const points=features.filter(f=>f.geometryType==='point');
+  document.getElementById('buildings-total').textContent=points.length;
+
+  let filtered=points;
+  if(buildingsTypeFilter==='house') filtered=filtered.filter(f=>isHouseType(f.type));
+  if(buildingsTypeFilter==='institution') filtered=filtered.filter(f=>!isHouseType(f.type));
+  if(buildingsSearchQuery){
+    const q=buildingsSearchQuery.toLowerCase();
+    filtered=filtered.filter(f=>(f.name||'').toLowerCase().includes(q) || typeLabel(f.type).toLowerCase().includes(q) || (f.note||'').toLowerCase().includes(q));
+  }
+
+  if(!points.length){ list.innerHTML=emptyState('ti-home-plus','No buildings marked yet','Switch to the Map tab and use Building mode to start marking Stage 1 structures.'); return; }
+  if(!filtered.length){ list.innerHTML=emptyState('ti-search-off','No matches','Try a different search term or filter.'); return; }
+
+  list.innerHTML=filtered.map(f=>buildingRowHTML(f)).join('');
+  list.querySelectorAll('.brow').forEach(row=>{
+    const fid=Number(row.dataset.fid);
+    row.querySelector('.brow-main').addEventListener('click', ()=>locateFeature(fid));
+    row.querySelector('.brow-edit').addEventListener('click', e=>{ e.stopPropagation(); editFeature(fid); });
+    row.querySelector('.brow-s2').addEventListener('click', e=>{ e.stopPropagation(); openStage2(fid); });
+    attachRowLongPress(row.querySelector('.brow-main'), fid);
+  });
+}
+
+/* ── Stage 2 tab ── */
+function setStage2Filter(v){
+  stage2Filter=v;
+  document.querySelectorAll('#stage2-filter-chips .chip').forEach(c=>c.classList.toggle('active', c.dataset.val===v));
+  renderStage2Tab();
+}
+function stage2RowHTML(f){
+  const filled = f.stage2Data && (f.stage2Data.head || f.stage2Data.members || f.stage2Data.remarks);
+  const dotClass = f.stage2 ? 's2-dot done' : (filled ? 's2-dot partial' : 's2-dot pending');
+  return `<div class="brow s2row" data-fid="${f.id}">
+    <div class="brow-icon" style="background:${typeColor(f.type)}">${typeGlyphHTML(f)}</div>
+    <div class="brow-body">
+      <div class="brow-title">${esc(f.name || ('Unnamed '+typeLabel(f.type)))}</div>
+      <div class="brow-sub">${f.stage2Data && f.stage2Data.head ? esc(f.stage2Data.head) : (filled?'Draft saved':'Not started')}</div>
+    </div>
+    <div class="${dotClass}"></div>
+    <i class="ti ti-chevron-right brow-chev"></i>
+  </div>`;
+}
+function renderStage2Tab(){
+  const housesOnly=features.filter(f=>f.geometryType==='point' && isHouseType(f.type));
+  const done=housesOnly.filter(f=>f.stage2);
+  const totalPop=done.reduce((s,f)=>s+(f.stage2Data?.members||0),0);
+
+  document.getElementById('s2-progress-done').textContent=done.length;
+  document.getElementById('s2-progress-total').textContent=housesOnly.length;
+  const pct = housesOnly.length ? Math.round(done.length/housesOnly.length*100) : 0;
+  document.getElementById('s2-progress-bar-fill').style.width=pct+'%';
+  document.getElementById('s2-progress-pct').textContent=pct+'%';
+  document.getElementById('s2-pop-total').textContent=totalPop;
+
+  let list=housesOnly;
+  if(stage2Filter==='pending') list=list.filter(f=>!f.stage2);
+  if(stage2Filter==='done') list=list.filter(f=>f.stage2);
+  if(stage2Filter==='all') list=[...list].sort((a,b)=>(a.stage2===b.stage2)?0:(a.stage2?1:-1));
+
+  const container=document.getElementById('stage2-list');
+  if(!housesOnly.length){ container.innerHTML=emptyState('ti-home-plus','No houses marked yet','Mark Pucca or Kutcha houses on the Map tab — Stage 2 applies to households.'); return; }
+  if(!list.length){
+    container.innerHTML = stage2Filter==='pending'
+      ? emptyState('ti-clipboard-check','All caught up','Every marked house has Stage 2 data recorded.')
+      : emptyState('ti-search-off','Nothing here','Try a different filter.');
+    return;
+  }
+  container.innerHTML=list.map(f=>stage2RowHTML(f)).join('');
+  container.querySelectorAll('.s2row').forEach(row=>{
+    const fid=Number(row.dataset.fid);
+    row.addEventListener('click', ()=>openStage2(fid));
+    attachRowLongPress(row, fid);
+  });
+}
+
+/* ── Stats tab ── */
+function statCard(label,value){ return `<div class="scard"><div class="scard-num">${value}</div><div class="scard-label">${esc(label)}</div></div>`; }
+function statBarRow(label,value,total,color){
+  const pct = total>0 ? Math.min(100, Math.round(value/total*100)) : 0;
+  return `<div class="sbar-row"><div class="sbar-top"><span>${esc(label)}</span><span class="sbar-val">${value}</span></div><div class="sbar-track"><div class="sbar-fill" style="width:${pct}%;background:${color}"></div></div></div>`;
+}
+function renderStatsTab(){
+  const points=features.filter(f=>f.geometryType==='point');
+  const houses=points.filter(f=>isHouseType(f.type));
+  const institutions=points.filter(f=>!isHouseType(f.type));
+  const pucca=houses.filter(f=>f.type==='pucca-house').length;
+  const kutcha=houses.filter(f=>f.type==='kutcha-house').length;
+  const res=houses.filter(f=>f.subtype!=='nr').length;
+  const nonRes=houses.filter(f=>f.subtype==='nr').length;
+  const totalCensusHouses=houses.reduce((s,f)=>s+(f.censusCount||1),0);
+  const done=houses.filter(f=>f.stage2).length;
+  const pct=houses.length?Math.round(done/houses.length*100):0;
+  const pop=houses.filter(f=>f.stage2).reduce((s,f)=>s+(f.stage2Data?.members||0),0);
+  const roads=features.filter(f=>f.geometryType==='line').length;
+  const boundaries=features.filter(f=>f.geometryType==='boundary').length;
+  const arrows=features.filter(f=>f.geometryType==='arrow').length;
+
+  const el=document.getElementById('stats-content');
+  if(!points.length && !roads && !boundaries){ el.innerHTML=emptyState('ti-chart-bar','Nothing to show yet','Mark some buildings on the Map tab and stats will appear here.'); return; }
+
+  const instCounts={};
+  institutions.forEach(f=>{ instCounts[f.type]=(instCounts[f.type]||0)+1; });
+  const instRows=Object.entries(instCounts).sort((a,b)=>b[1]-a[1])
+    .map(([type,count])=>statBarRow(typeLabel(type), count, institutions.length, typeColor(type))).join('');
+
+  el.innerHTML = `
+    <div class="stat-grid">
+      ${statCard('Buildings', points.length)}
+      ${statCard('Census Houses', totalCensusHouses)}
+      ${statCard('Roads / Rivers', roads)}
+      ${statCard('Boundaries', boundaries)}
+    </div>
+    <div class="stat-section">
+      <div class="stat-section-title">House Construction</div>
+      ${statBarRow('Pucca', pucca, houses.length||1, '#f5f5f7')}
+      ${statBarRow('Kutcha', kutcha, houses.length||1, '#9a9aa8')}
+    </div>
+    <div class="stat-section">
+      <div class="stat-section-title">Usage</div>
+      ${statBarRow('Residential', res, houses.length||1, 'var(--signal)')}
+      ${statBarRow('Non-Residential', nonRes, houses.length||1, 'var(--warn)')}
+    </div>
+    ${institutions.length ? `<div class="stat-section"><div class="stat-section-title">Institutions &amp; Amenities</div>${instRows}</div>` : ''}
+    <div class="stat-section">
+      <div class="stat-section-title">Household Data (Stage 2)</div>
+      <div class="s2-ring-row">
+        <div class="s2-ring-num">${pct}%</div>
+        <div class="s2-ring-label">${done} of ${houses.length} houses recorded<br/>${pop} people captured</div>
+      </div>
+      ${statBarRow('Completed', done, houses.length||1, 'var(--ok)')}
+    </div>
+    <div class="stat-section">
+      <div class="stat-section-title">Enumeration Order</div>
+      ${statBarRow('Arrows placed', arrows, Math.max(points.length-1,1), 'var(--data)')}
+    </div>
+  `;
+}
+
+/* ════════════════════════════════════════════════════════════
+   FIT TO AREA
+   ════════════════════════════════════════════════════════════ */
+function fitToArea(){
+  const bounds=L.latLngBounds([]);
+  const boundaries=features.filter(f=>f.geometryType==='boundary');
+  if(boundaries.length){
+    boundaries.forEach(f=>f.coords.forEach(c=>bounds.extend(c)));
+  } else {
+    features.forEach(f=>{
+      if(f.geometryType==='point') bounds.extend(f.coords);
+      else if(Array.isArray(f.coords)) f.coords.forEach(c=>{ if(Array.isArray(c) && c.length===2 && typeof c[0]==='number') bounds.extend(c); });
+    });
+  }
+  if(!bounds.isValid()){ showStatus('No features yet','warn'); return; }
+  map.fitBounds(bounds,{padding:[24,24],maxZoom:20});
+  showStatus('Area focused ✓','ok',2000);
+}
+
+/* ════════════════════════════════════════════════════════════
+   PRINT
+   ════════════════════════════════════════════════════════════ */
+function printMap(){ window.print(); }
+
+/* ════════════════════════════════════════════════════════════
+   IMAGE OVERLAY
+   ════════════════════════════════════════════════════════════ */
 function loadImageOverlay(ev){
-  const file=ev.target.files[0];if(!file)return;
+  const file=ev.target.files[0]; if(!file) return;
   const reader=new FileReader();
   reader.onload=function(e){
     const url=e.target.result;
@@ -1503,16 +2133,13 @@ function loadImageOverlay(ev){
       refOverlay=L.imageOverlay(url,bounds,{opacity:.5,zIndex:10}).addTo(map);
       const dragIcon=L.divIcon({className:'overlay-drag',html:'<i class="ti ti-arrows-move"></i>',iconSize:[36,36],iconAnchor:[18,18]});
       refMarkerCenter=L.marker(c,{draggable:true,icon:dragIcon,zIndexOffset:3000}).addTo(map);
-      refMarkerCenter.on('drag',function(e){
+      refMarkerCenter.on('drag', function(e){
         const nc=e.target.getLatLng();
         const sc=parseFloat(document.getElementById('img-scale').value);
         refOverlay.setBounds(getBoundsFromCenter(nc,sc));
         applyRotation();
       });
       document.getElementById('geocontrols').classList.add('on');
-      document.getElementById('tb-photo').style.display='none';
-      document.getElementById('tb-photo-rm').style.display='flex';
-      refOverlay.on('load',applyRotation);
       applyRotation();
     };
     img.src=url;
@@ -1520,99 +2147,300 @@ function loadImageOverlay(ev){
   reader.readAsDataURL(file);
   ev.target.value='';
 }
-map.on('zoom viewreset zoomend zoomanim move moveend',()=>requestAnimationFrame(applyRotation));
+map.on('zoomanim move moveend zoomend', ()=>{
+  if(!refOverlay) return;
+  const el=refOverlay.getElement(); if(!el) return;
+  requestAnimationFrame(()=>{
+    el._leafletTransform=(el.style.transform||'').replace(/ rotate\([-\d.]+deg\)/g,'');
+    applyRotation();
+  });
+});
 function applyRotation(){
-  if(!refOverlay)return;
-  const el=refOverlay.getElement();if(!el)return;
+  if(!refOverlay) return;
+  const el=refOverlay.getElement(); if(!el) return;
   el.style.transformOrigin='50% 50%';
-  let t=el.style.transform||'';
-  t=t.replace(/ rotate\([-\d.]+deg\)/g,'');
-  el.style.transform=imgAngle!==0?t+` rotate(${imgAngle}deg)`:t;
+  if(!el._leafletTransform) el._leafletTransform=el.style.transform||'';
+  const base=el._leafletTransform;
+  el.style.transform = imgAngle!==0 ? base+` rotate(${imgAngle}deg)` : base;
 }
 function getBoundsFromCenter(c,scale){
-  const lh=(baseLatSpan*scale)/2,lngh=(baseLngSpan*scale)/2;
+  const lh=(baseLatSpan*scale)/2, lngh=(baseLngSpan*scale)/2;
   return L.latLngBounds([c.lat-lh,c.lng-lngh],[c.lat+lh,c.lng+lngh]);
 }
 function setOvScale(v){
-  if(!refOverlay||!refMarkerCenter)return;
+  if(!refOverlay || !refMarkerCenter) return;
   document.getElementById('scval').textContent=parseFloat(v).toFixed(1)+'×';
-  refOverlay.setBounds(getBoundsFromCenter(refMarkerCenter.getLatLng(),parseFloat(v)));
+  refOverlay.setBounds(getBoundsFromCenter(refMarkerCenter.getLatLng(), parseFloat(v)));
   applyRotation();
 }
-function setOvOpacity(v){ document.getElementById('opval').textContent=Math.round(v*100)+'%'; if(refOverlay)refOverlay.setOpacity(parseFloat(v)); }
+function setOvOpacity(v){ document.getElementById('opval').textContent=Math.round(v*100)+'%'; if(refOverlay) refOverlay.setOpacity(parseFloat(v)); }
 function setOvRotation(v){ imgAngle=parseFloat(v); document.getElementById('rotval').textContent=v+'°'; applyRotation(); }
 function lockOverlay(){
-  if(refMarkerCenter){map.removeLayer(refMarkerCenter);refMarkerCenter=null;}
+  if(refMarkerCenter){ map.removeLayer(refMarkerCenter); refMarkerCenter=null; }
   document.getElementById('geocontrols').classList.remove('on');
-  showStatus('Image locked — draw features on top','ok',3000);
+  showStatus('Image locked — draw on top of it now','ok',3000);
 }
 function removeOverlay(){
-  if(refOverlay){map.removeLayer(refOverlay);refOverlay=null;}
-  if(refMarkerCenter){map.removeLayer(refMarkerCenter);refMarkerCenter=null;}
+  if(refOverlay){ map.removeLayer(refOverlay); refOverlay=null; }
+  if(refMarkerCenter){ map.removeLayer(refMarkerCenter); refMarkerCenter=null; }
   imgAngle=0;
+  document.getElementById('img-scale').value=1;
+  document.getElementById('img-opacity').value=0.5;
+  document.getElementById('img-rotate').value=0;
+  document.getElementById('opval').textContent='50%';
+  document.getElementById('scval').textContent='1.0×';
+  document.getElementById('rotval').textContent='0°';
   document.getElementById('geocontrols').classList.remove('on');
-  document.getElementById('tb-photo').style.display='flex';
-  document.getElementById('tb-photo-rm').style.display='none';
+}
+function removeOverlayConfirm(){
+  if(refOverlay){ if(!confirm('Remove the aligned photo? This cannot be undone.')) return; }
+  removeOverlay();
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// DATA & EXPORT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function saveData(){localStorage.setItem('census-v3',JSON.stringify(features))}
-function clearAll(){
-  if(!confirm('Delete ALL features? This cannot be undone.'))return;
-  features=[];saveData();renderAll();showStatus('All data cleared','warn',2000);
+/* ════════════════════════════════════════════════════════════
+   DATA PERSISTENCE + BACKUP DIRTY-STATE TRACKING
+   ════════════════════════════════════════════════════════════ */
+function saveData(){
+  try{
+    localStorage.setItem('census-v4', JSON.stringify(features));
+    markDirty();
+  }catch(e){
+    showStatus('Could not save data (storage full?)','err',4000);
+  }
 }
-function exportData(){
-  if(!features.length){showStatus('No data to export','warn');return}
+function markDirty(){
+  changesSinceBackup++;
+  localStorage.setItem('census-changes-since-backup', String(changesSinceBackup));
+  updateBackupReminderUI();
+}
+function clearDirtyState(){
+  changesSinceBackup=0;
+  localStorage.setItem('census-changes-since-backup','0');
+  updateBackupReminderUI();
+}
+function clearAll(){
+  if(!confirm('Delete ALL features? This cannot be undone.')) return;
+  features=[]; undoStack=[];
+  if(searchMarker){ map.removeLayer(searchMarker); searchMarker=null; }
+  try{ localStorage.setItem('census-v4', JSON.stringify(features)); }catch(e){}
+  clearDirtyState();
+  renderAll();
+  showStatus('All data cleared','warn',2000);
+}
+
+/* ════════════════════════════════════════════════════════════
+   BACKUP REMINDER ENGINE
+   ════════════════════════════════════════════════════════════ */
+function isBackupOverdue(){
+  return features.length>0 && (lastBackupAt===0 || (Date.now()-lastBackupAt) > BACKUP_OVERDUE_MS);
+}
+function timeAgo(ts){
+  if(!ts) return 'Never';
+  const diff=Date.now()-ts;
+  const min=Math.floor(diff/60000);
+  if(min<1) return 'just now';
+  if(min<60) return min+' min ago';
+  const hr=Math.floor(min/60);
+  if(hr<24) return hr+' hr ago';
+  const day=Math.floor(hr/24);
+  return day+(day===1?' day ago':' days ago');
+}
+function updateBackupReminderUI(){
+  const overdue=isBackupOverdue();
+  const badge=document.getElementById('tab-backup-badge');
+  if(badge) badge.classList.toggle('show', overdue);
+
+  const banner=document.getElementById('reminder-banner');
+  if(overdue && !bannerDismissedThisSession){
+    banner.classList.add('on');
+    document.getElementById('reminder-text').textContent = lastBackupAt===0
+      ? `${features.length} feature${features.length===1?'':'s'} saved only on this device — back them up now`
+      : `No backup since ${timeAgo(lastBackupAt)} — back up before you lose today's work`;
+  } else {
+    banner.classList.remove('on');
+  }
+  if(activeTab==='backup') renderBackupTab();
+}
+function dismissReminderBanner(){
+  bannerDismissedThisSession=true;
+  document.getElementById('reminder-banner').classList.remove('on');
+}
+
+/* ════════════════════════════════════════════════════════════
+   BACKUP TAB
+   ════════════════════════════════════════════════════════════ */
+function renderBackupTab(){
+  const card=document.getElementById('backup-status-card');
+  const overdue=isBackupOverdue();
+  card.className='backup-status-card '+(lastBackupAt===0?'never':(overdue?'overdue':'ok'));
+  document.getElementById('backup-rel-time').textContent = lastBackupAt ? timeAgo(lastBackupAt) : 'Never backed up';
+  document.getElementById('backup-abs-time').textContent = lastBackupAt ? new Date(lastBackupAt).toLocaleString() : 'Export a backup to protect your work';
+  document.getElementById('backup-changes-count').textContent = changesSinceBackup;
+
+  const counts={
+    point: features.filter(f=>f.geometryType==='point').length,
+    line: features.filter(f=>f.geometryType==='line').length,
+    boundary: features.filter(f=>f.geometryType==='boundary').length,
+    arrow: features.filter(f=>f.geometryType==='arrow').length
+  };
+  document.getElementById('backup-current-counts').textContent =
+    `${counts.point} buildings · ${counts.line} roads · ${counts.boundary} boundaries · ${counts.arrow} arrows`;
+}
+
+/* ════════════════════════════════════════════════════════════
+   EXPORT — JSON (full-fidelity backup) and CSV (report)
+   ════════════════════════════════════════════════════════════ */
+function formatLocalDateForFilename(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function exportJSON(){
+  if(!features.length){ showStatus('No data to back up yet','warn'); return; }
   const blob=new Blob([JSON.stringify(features,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download='census_layout_'+new Date().toISOString().slice(0,10)+'.json';
+  a.download='census_backup_'+formatLocalDateForFilename(new Date())+'.json';
   a.click(); URL.revokeObjectURL(a.href);
-  showStatus('Exported ✓','ok',2000);
+  recordBackupTaken();
+  showStatus('Backup saved ✓ — keep this file safe','ok',3000);
+}
+function recordBackupTaken(){
+  lastBackupAt=Date.now();
+  localStorage.setItem('census-last-backup', String(lastBackupAt));
+  clearDirtyState();
+}
+function csvEscape(v){
+  const s=String(v??'');
+  if(/[",\n\r]/.test(s)) return '"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+function exportCSV(){
+  const points=features.filter(f=>f.geometryType==='point');
+  if(!points.length){ showStatus('No buildings to export yet','warn'); return; }
+  const headers=['ID','Type','Subtype','Name/Number','Census Houses','Note','Latitude','Longitude','Stage2 Completed','Household Head','Members','Remarks'];
+  const rows=points.map(f=>[
+    f.id, typeLabel(f.type), f.subtype||'', f.name||'', f.censusCount||0, f.note||'',
+    f.coords && f.coords[0], f.coords && f.coords[1],
+    f.stage2?'Yes':'No', (f.stage2Data&&f.stage2Data.head)||'', (f.stage2Data&&f.stage2Data.members)??'', (f.stage2Data&&f.stage2Data.remarks)||''
+  ]);
+  const csv=[headers,...rows].map(r=>r.map(csvEscape).join(',')).join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='census_buildings_'+formatLocalDateForFilename(new Date())+'.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+  showStatus('CSV exported ✓','ok',2500);
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// STATUS & HELPERS
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/* ════════════════════════════════════════════════════════════
+   IMPORT — restore from a backup .json file
+   ════════════════════════════════════════════════════════════ */
+let pendingImport=null;
+function triggerImport(){ document.getElementById('import-file-input').click(); }
+function countByType(arr){
+  const c={point:0,line:0,boundary:0,arrow:0};
+  arr.forEach(f=>{ if(c[f.geometryType]!==undefined) c[f.geometryType]++; });
+  return c;
+}
+function handleImportFile(ev){
+  const file=ev.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    let data;
+    try{ data=JSON.parse(e.target.result); }
+    catch(err){ showStatus('That file is not valid JSON — choose a Census Mapper backup file','err',5000); ev.target.value=''; return; }
+    if(!Array.isArray(data)){ showStatus('That file does not look like a Census Mapper backup','err',5000); ev.target.value=''; return; }
+    const valid=data.filter(f=>f && typeof f==='object' && ['point','line','arrow','boundary'].includes(f.geometryType) && Array.isArray(f.coords));
+    const skipped=data.length-valid.length;
+    if(!valid.length){ showStatus('No usable features found in that file','err',5000); ev.target.value=''; return; }
+    pendingImport={data:valid, skipped};
+    openImportModal(valid, skipped);
+    ev.target.value='';
+  };
+  reader.readAsText(file);
+}
+function openImportModal(valid, skipped){
+  const counts=countByType(valid);
+  document.getElementById('import-summary').innerHTML =
+    `<div><b>${counts.point}</b> buildings, <b>${counts.line}</b> roads/rivers, <b>${counts.boundary}</b> boundaries, <b>${counts.arrow}</b> arrows in this file</div>`
+    + (skipped>0 ? `<div class="im-warn" style="margin-top:6px">${skipped} entries skipped (unrecognised format)</div>` : '')
+    + `<div style="margin-top:10px">You currently have <b>${features.length}</b> feature${features.length===1?'':'s'} saved on this device.</div>`;
+  document.getElementById('import-overlay').classList.add('open');
+}
+function closeImportModal(){ document.getElementById('import-overlay').classList.remove('open'); pendingImport=null; }
+function applyImport(mode){
+  if(!pendingImport) return;
+  if(mode==='replace' && !confirm('Replace ALL current data with this backup? Your current '+features.length+' feature(s) will be permanently removed.')) return;
+  const incoming = pendingImport.data.map(f=>({...f, id:newId()}));
+  if(mode==='replace') features=incoming;
+  else features=features.concat(incoming);
+  saveData();
+  closeImportModal();
+  renderAll();
+  showStatus(`Imported ${incoming.length} feature${incoming.length===1?'':'s'} (${mode==='replace'?'replaced':'merged'}) ✓`,'ok',3500);
+}
+
+/* ════════════════════════════════════════════════════════════
+   STATUS TOAST
+   ════════════════════════════════════════════════════════════ */
 let statusTimer=null;
 function showStatus(msg,type='ok',dur=3000){
   const el=document.getElementById('status');
+  if(!el){ _deferredStatus={msg,type,dur}; return; }
   const icons={ok:'ti-info-circle',warn:'ti-alert-circle',err:'ti-circle-x'};
   document.getElementById('sicon').className='ti '+(icons[type]||'ti-info-circle');
   document.getElementById('smsg').textContent=msg;
   el.className='on '+type;
-  clearTimeout(statusTimer);
+  clearTimeout(statusTimer); statusTimer=null;
   if(dur>0) statusTimer=setTimeout(clearStatus,dur);
 }
-function clearStatus(){ document.getElementById('status').className=''; clearTimeout(statusTimer); }
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function clearStatus(){
+  const el=document.getElementById('status');
+  if(el) el.className='';
+  clearTimeout(statusTimer); statusTimer=null;
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-// Keyboard shortcuts
-document.addEventListener('keydown',e=>{
-  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
+/* ════════════════════════════════════════════════════════════
+   KEYBOARD SHORTCUTS (map tab only; ignores modifiers / inputs)
+   ════════════════════════════════════════════════════════════ */
+document.addEventListener('keydown', e=>{
+  const tag=e.target.tagName;
+  if(tag==='INPUT' || tag==='TEXTAREA' || tag==='SELECT') return;
+  if(e.target.isContentEditable) return;
+  if(e.ctrlKey || e.metaKey || e.altKey) return;
+  if(activeTab!=='map') return;
   const k=e.key.toLowerCase();
-  if(k==='v')setMode('view');
-  if(k==='p')setMode('point');
-  if(k==='l')setMode('line');
-  if(k==='b')setMode('boundary');
-  if(k==='a')setMode('arrow');
-  if(k==='z')undoLast();
+  if(k==='v') setMode('view');
+  if(k==='p') setMode('point');
+  if(k==='l') setMode('line');
+  if(k==='b') setMode('boundary');
+  if(k==='a') setMode('arrow');
+  if(k==='z') undoLast();
   if(k==='escape'){
-    closeCtx();closeModal();
-    if(draggingMk)endDragMode(false);
-    if(editBndFid!==null)cancelBoundaryEdit();
+    closeCtx(); closeModal();
+    if(draggingMk) endDragMode(false);
+    if(editBndFid!==null) cancelBoundaryEdit();
     clearArrowSelection();
     setMode('view');
   }
 });
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// INIT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/* ════════════════════════════════════════════════════════════
+   INIT
+   ════════════════════════════════════════════════════════════ */
 renderAll();
-showStatus('Map rotatable with two fingers – tap compass to reset north','ok',5000);
+document.getElementById('qm-toggle').classList.toggle('on', quickMarkOn);
+if(walkTrail.length>1){ redrawWalkTrail(); updateWalkBadge(); }
+updateBackupReminderUI();
+
+if(_deferredStatus){
+  showStatus(_deferredStatus.msg, _deferredStatus.type, _deferredStatus.dur);
+  _deferredStatus=null;
+} else if(!features.length){
+  showStatus('Open the Building tool and tap the map to start marking Stage 1','ok',5000);
+} else {
+  showStatus('Stage 1 on the Map tab. Stage 2 in its own tab. Back up daily from Backup.','ok',5000);
+}
 </script>
 </body>
 </html>
