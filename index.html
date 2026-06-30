@@ -129,21 +129,42 @@ input,select{font-family:inherit}
 .map-ctrl-btn.active-state{color:var(--data);border-color:var(--data)!important}
 .map-label{background:transparent!important;border:none!important;box-shadow:none!important;font-weight:700;font-size:10.5px;color:#fff;text-shadow:0 0 3px #000,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;white-space:nowrap}
 
-/* Collapsible map tools (Mini-FABs) */
-.mini-fab { position:relative; display:flex; flex-direction:column; gap:8px; }
+/* Collapsible map tools (Mini-FABs with labels) */
+.mini-fab { position:relative; display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
+.mini-fab.right-align { align-items:flex-end; }
 .mini-fab-stack { 
   display:flex; flex-direction:column; gap:8px; opacity:0; pointer-events:none; 
   transform:translateY(-8px); transition:all 0.15s ease; position:absolute; 
-  top:100%; left:0; margin-top:8px; z-index:240; 
+  top:100%; z-index:240; white-space:nowrap; margin-top:8px;
 }
 .mini-fab-stack.open { opacity:1; pointer-events:auto; transform:translateY(0); }
+.mini-fab:not(.right-align) .mini-fab-stack { left:0; align-items:flex-start; }
+.mini-fab.right-align .mini-fab-stack { right:0; align-items:flex-end; }
+
 .util-btn{
   width:44px;height:44px;border-radius:50%;background:var(--s2);border:1px solid var(--line2);
   color:var(--ink2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;
-  box-shadow:0 2px 10px rgba(0,0,0,.4);
+  box-shadow:0 2px 10px rgba(0,0,0,.4); transition:transform 0.1s;
 }
 .util-btn:active{transform:scale(.93);background:var(--s3)}
-.util-btn.active-state{color:var(--signal); border-color:var(--signal);}
+
+.mf-item {
+  display:flex; align-items:center; gap:8px; background:var(--s2);
+  border:1px solid var(--line2); border-radius:28px; cursor:pointer;
+  box-shadow:0 4px 14px rgba(0,0,0,.5); padding:4px 12px 4px 4px;
+  transition:transform 0.1s ease, background 0.1s ease;
+}
+.mini-fab.right-align .mf-item { flex-direction:row-reverse; padding:4px 4px 4px 12px; }
+.mf-item i {
+  width:34px; height:34px; border-radius:50%; background:var(--s3);
+  display:flex; align-items:center; justify-content:center; font-size:18px; color:var(--ink2);
+  flex-shrink:0;
+}
+.mf-item span { font-size:12px; font-weight:600; color:var(--ink2); }
+.mf-item:active { transform:scale(0.96); background:var(--s3); }
+.mf-item.active-state { border-color:var(--signal); }
+.mf-item.active-state i { background:var(--signal-dim); color:var(--signal); }
+.mf-item.active-state span { color:var(--signal); }
 
 /* Left floating cluster */
 #map-left-cluster{position:absolute;top:10px;left:10px;z-index:240;display:flex;flex-direction:column;gap:8px;max-width:min(250px,62vw)}
@@ -223,7 +244,7 @@ input,select{font-family:inherit}
 .bebtn{background:var(--signal);border:none;color:#fff;border-radius:7px;padding:8px 12px;font-size:11px;cursor:pointer;font-weight:600}
 .bebtn.danger{background:var(--danger)}
 
-/* Map utility row (Undo / Focus / Print) */
+/* Map utility row */
 #map-util-row{ position:absolute; top:10px; right:50px; z-index:240; }
 
 /* FAB cluster */
@@ -561,10 +582,18 @@ input,select{font-family:inherit}
         <div id="map-layers-cluster" class="mini-fab">
           <button class="util-btn" id="layer-fab-main" onclick="toggleLayers()"><i class="ti ti-map"></i></button>
           <div id="layer-stack" class="mini-fab-stack">
-            <button class="util-btn active-state" data-maptype="osm" onclick="switchMapType('osm')" title="Map"><i class="ti ti-map"></i></button>
-            <button class="util-btn" data-maptype="sat" onclick="switchMapType('sat')" title="Satellite"><i class="ti ti-satellite"></i></button>
-            <button class="util-btn" data-maptype="dark" onclick="switchMapType('dark')" title="Dark Mode"><i class="ti ti-moon"></i></button>
-            <button class="util-btn" onclick="document.getElementById('fileup').click()" title="Load reference photo"><i class="ti ti-photo-plus"></i></button>
+            <div class="mf-item active-state" data-maptype="osm" onclick="switchMapType('osm')">
+              <i class="ti ti-map"></i><span>Map</span>
+            </div>
+            <div class="mf-item" data-maptype="sat" onclick="switchMapType('sat')">
+              <i class="ti ti-satellite"></i><span>Satellite</span>
+            </div>
+            <div class="mf-item" data-maptype="dark" onclick="switchMapType('dark')">
+              <i class="ti ti-moon"></i><span>Dark Mode</span>
+            </div>
+            <div class="mf-item" onclick="document.getElementById('fileup').click()">
+              <i class="ti ti-photo-plus"></i><span>Reference Photo</span>
+            </div>
           </div>
         </div>
 
@@ -610,12 +639,18 @@ input,select{font-family:inherit}
       </div>
 
       <div id="map-util-row">
-        <div id="map-util-cluster" class="mini-fab" style="align-items: flex-end;">
+        <div id="map-util-cluster" class="mini-fab right-align">
           <button class="util-btn" id="util-fab-main" onclick="toggleUtils()"><i class="ti ti-tools"></i></button>
-          <div id="util-stack" class="mini-fab-stack" style="left: auto; right: 0;">
-            <div class="util-btn" onclick="undoLast(); showStatus('Undoing last action', 'warn', 1500)" title="Undo last [Z]"><i class="ti ti-arrow-back-up"></i></div>
-            <div class="util-btn" onclick="fitToArea(); showStatus('Refocusing map', 'ok', 1500)" title="Fit to area"><i class="ti ti-arrows-maximize"></i></div>
-            <div class="util-btn" onclick="printMap(); showStatus('Printing map', 'ok', 1500)" title="Print map"><i class="ti ti-printer"></i></div>
+          <div id="util-stack" class="mini-fab-stack">
+            <div class="mf-item" onclick="undoLast(); showStatus('Undoing last action', 'warn', 1500)">
+              <i class="ti ti-arrow-back-up"></i><span>Undo Last</span>
+            </div>
+            <div class="mf-item" onclick="fitToArea(); showStatus('Refocusing map', 'ok', 1500)">
+              <i class="ti ti-arrows-maximize"></i><span>Fit to Area</span>
+            </div>
+            <div class="mf-item" onclick="printMap(); showStatus('Printing map', 'ok', 1500)">
+              <i class="ti ti-printer"></i><span>Print Map</span>
+            </div>
           </div>
         </div>
       </div>
@@ -992,8 +1027,8 @@ function switchMapType(type){
   currentBase = TILES[type];
   currentBase.addTo(map);
   
-  document.querySelectorAll('#layer-stack .util-btn[data-maptype]').forEach(b=>b.classList.remove('active-state'));
-  const activeBtn = document.querySelector(`#layer-stack .util-btn[data-maptype="${type}"]`);
+  document.querySelectorAll('#layer-stack .mf-item[data-maptype]').forEach(b=>b.classList.remove('active-state'));
+  const activeBtn = document.querySelector(`#layer-stack .mf-item[data-maptype="${type}"]`);
   if(activeBtn) activeBtn.classList.add('active-state');
 
   const icons = {osm: 'ti-map', sat: 'ti-satellite', dark: 'ti-moon'};
