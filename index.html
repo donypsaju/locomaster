@@ -534,6 +534,16 @@ input,select{font-family:inherit}
 @media(max-width:360px){
   .stat-grid{grid-template-columns:1fr}
   #map-left-cluster{max-width:70vw}
+  #fab-main{width:52px;height:52px;font-size:22px}
+  .fab-item{padding:8px 12px 8px 8px}
+  .fab-item span{font-size:11px}
+  .qm-row{min-width:150px}
+}
+@media(min-width:768px){
+  /* Tablet / Desktop adjustments */
+  #map-left-cluster{top:12px;left:14px;max-width:280px}
+  #map-search-panel{width:260px}
+  #fab-cluster{right:16px;bottom:calc(var(--tbh)+16px)}
 }
 </style>
 </head>
@@ -675,7 +685,7 @@ input,select{font-family:inherit}
         <div class="eyebrow">Stage 1 · Building Register</div>
         <div class="tab-search">
           <i class="ti ti-search"></i>
-          <input type="text" id="buildings-search" placeholder="Search by name, number, or type…" oninput="onBuildingsSearch(this.value)"/>
+          <input type="text" id="buildings-search" placeholder="Search by name, number, HLB or type…" oninput="onBuildingsSearch(this.value)"/>
         </div>
         <div class="chip-row" id="buildings-type-chips">
           <div class="chip active" data-val="all" onclick="setBuildingsTypeFilter('all')">All</div>
@@ -786,6 +796,15 @@ input,select{font-family:inherit}
     <h3 id="modal-title"><i class="ti ti-home-plus" style="color:var(--signal)"></i>Feature Details</h3>
 
     <div id="form-point" style="display:none">
+      <div class="fg">
+        <label class="fl">HLB Number</label>
+        <div style="display:flex;gap:6px">
+          <select id="pt-hlb" class="fi" style="flex:1">
+            <option value="">-- Select HLB --</option>
+          </select>
+          <button type="button" class="util-btn" style="height:44px;width:44px;flex-shrink:0" onclick="addNewHLB()" title="Add new HLB"><i class="ti ti-plus"></i></button>
+        </div>
+      </div>
       <div class="fg">
         <label class="fl">Feature Type</label>
         <select class="fi" id="pt-type" onchange="onFeatureTypeChange()">
@@ -914,6 +933,42 @@ let _idSeq = 0;
 function newId(){ return Date.now()*1000 + (++_idSeq % 1000); }
 
 /* ════════════════════════════════════════════════════════════
+   HLB MANAGEMENT
+   ════════════════════════════════════════════════════════════ */
+let hlbList = [];
+try{ hlbList = JSON.parse(localStorage.getItem('census-hlbs')||'[]'); if(!Array.isArray(hlbList)) hlbList=[]; }catch(e){ hlbList=[]; }
+
+function saveHLBs(){ localStorage.setItem('census-hlbs', JSON.stringify(hlbList)); }
+function addHLB(value){
+  value = String(value).trim();
+  if(!value) return null;
+  if(hlbList.includes(value)) return value;
+  hlbList.push(value);
+  saveHLBs();
+  return value;
+}
+function addNewHLB(){
+  const input = prompt('Enter new HLB number:');
+  if(input && input.trim()){
+    addHLB(input.trim());
+    updateHLBDropdown(input.trim());
+    showStatus('New HLB added: '+input.trim(),'ok',2000);
+  }
+}
+function updateHLBDropdown(selectedValue){
+  const sel = document.getElementById('pt-hlb');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">-- Select HLB --</option>';
+  hlbList.forEach(h => {
+    const opt = document.createElement('option');
+    opt.value = h;
+    opt.textContent = h;
+    if(h===selectedValue) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════
    SHARED TYPE METADATA
    ════════════════════════════════════════════════════════════ */
 const INSTITUTION_META = {
@@ -1035,7 +1090,7 @@ function switchMapType(type){
   document.getElementById('layer-fab-main').innerHTML = `<i class="ti ${icons[type]}"></i>`;
 }
 
-/* ── Two-finger rotation (NaN/zero-distance guarded) ── */
+/* ── Two-finger rotation ── */
 (function(){
   const container = map.getContainer();
   let initialAngle=0, initialBearing=0, initialDistance=0, isRotating=false;
@@ -1479,7 +1534,7 @@ function placeQuickMark(coords){
   const feature={
     id:newId(), geometryType:'point', coords,
     type:qmLast.type, subtype:qmLast.subtype, censusCount:qmLast.censusCount,
-    name:'', note:''
+    name:'', note:'', hlb:''
   };
   features.push(feature);
   saveData(); renderAll();
@@ -1754,11 +1809,18 @@ function openModal(type, coords, existingFeature=null){
   document.getElementById('form-boundary').style.display = type==='boundary'?'block':'none';
 
   if(type==='point'){
+    // Update HLB dropdown before populating
+    updateHLBDropdown(existingFeature ? existingFeature.hlb : '');
     document.getElementById('pt-type').value = existingFeature?existingFeature.type:'pucca-house';
     document.getElementById('pt-subtype').value = existingFeature?(existingFeature.subtype||'res'):'res';
     document.getElementById('pt-name').value = existingFeature?(existingFeature.name||''):'';
     document.getElementById('pt-census').value = existingFeature?(existingFeature.censusCount||1):1;
     document.getElementById('pt-note').value = existingFeature?(existingFeature.note||''):'';
+    // select HLB
+    if(existingFeature && existingFeature.hlb){
+      const sel = document.getElementById('pt-hlb');
+      sel.value = existingFeature.hlb;
+    }
     onFeatureTypeChange();
   }
   if(type==='line'){
@@ -1814,6 +1876,9 @@ function saveFeature(){
     }
     feature.name=document.getElementById('pt-name').value.trim();
     feature.note=document.getElementById('pt-note').value.trim();
+    // HLB
+    const hlbVal = document.getElementById('pt-hlb').value.trim();
+    if(hlbVal){ addHLB(hlbVal); feature.hlb = hlbVal; } else { feature.hlb = ''; }
     qmLast = {type:feature.type, subtype:feature.subtype, censusCount:feature.censusCount||1};
 
   } else if(type==='line'){
@@ -1967,6 +2032,7 @@ function renderAll(){
     if(f.name){ labelText=f.name; if(f.censusCount && f.censusCount>1) labelText+=` (${f.censusCount})`; }
     else if(house){ labelText = (f.censusCount && f.censusCount>1) ? `(${f.censusCount})` : '1'; }
     else { labelText = typeLabel(f.type); }
+    if(f.hlb) labelText += ` [${f.hlb}]`;
     mk.bindTooltip(labelText,{permanent:true,direction:'right',className:'map-label',offset:[12,0]});
 
     mk.on('click', function(e){
@@ -2050,7 +2116,8 @@ function buildingRowHTML(f){
   const house=isHouseType(f.type);
   const filled = f.stage2Data && (f.stage2Data.head || f.stage2Data.members || f.stage2Data.remarks);
   const dotClass = f.stage2 ? 's2-dot done' : (filled ? 's2-dot partial' : 's2-dot pending');
-  const sub = house ? ((f.subtype==='nr'?'Non-residential':'Residential') + (f.censusCount>1?' · '+f.censusCount+' houses':'')) : typeLabel(f.type);
+  let sub = house ? ((f.subtype==='nr'?'Non-residential':'Residential') + (f.censusCount>1?' · '+f.censusCount+' houses':'')) : typeLabel(f.type);
+  if(f.hlb) sub += ' · HLB '+f.hlb;
   return `<div class="brow" data-fid="${f.id}">
     <div class="brow-main">
       <div class="brow-icon" style="background:${typeColor(f.type)}">${typeGlyphHTML(f)}</div>
@@ -2074,7 +2141,7 @@ function renderBuildingsTab(){
   if(buildingsTypeFilter==='institution') filtered=filtered.filter(f=>!isHouseType(f.type));
   if(buildingsSearchQuery){
     filtered=filtered.filter(f=>{
-      const searchable = [(f.name||''), typeLabel(f.type), (f.note||'')].join(' ');
+      const searchable = [(f.name||''), typeLabel(f.type), (f.hlb||''), (f.note||'')].join(' ');
       return fuzzyMatch(buildingsSearchQuery, searchable);
     });
   }
@@ -2231,7 +2298,7 @@ function fitToArea(){
 function printMap(){ window.print(); }
 
 /* ════════════════════════════════════════════════════════════
-   IMAGE OVERLAY
+   IMAGE OVERLAY (fixed rotation & scale)
    ════════════════════════════════════════════════════════════ */
 function loadImageOverlay(ev){
   const file=ev.target.files[0]; if(!file) return;
@@ -2270,22 +2337,19 @@ function loadImageOverlay(ev){
   reader.readAsDataURL(file);
   ev.target.value='';
 }
-map.on('zoomanim move moveend zoomend', ()=>{
-  if(!refOverlay) return;
-  const el=refOverlay.getElement(); if(!el) return;
-  requestAnimationFrame(()=>{
-    el._leafletTransform=(el.style.transform||'').replace(/ rotate\([-\d.]+deg\)/g,'');
-    applyRotation();
-  });
-});
 function applyRotation(){
   if(!refOverlay) return;
-  const el=refOverlay.getElement(); if(!el) return;
-  el.style.transformOrigin='50% 50%';
-  if(!el._leafletTransform) el._leafletTransform=el.style.transform||'';
-  const base=el._leafletTransform;
-  el.style.transform = imgAngle!==0 ? base+` rotate(${imgAngle}deg)` : base;
+  const el=refOverlay.getElement();
+  if(!el) return;
+  const currentTransform = el.style.transform || '';
+  // Remove any existing rotation
+  const noRotate = currentTransform.replace(/rotate\([^)]*\)/g, '');
+  const newTransform = imgAngle!==0 ? noRotate + ` rotate(${imgAngle}deg)` : noRotate;
+  el.style.transform = newTransform;
+  el.style.transformOrigin = '50% 50%';
 }
+map.on('moveend', ()=>{ if(refOverlay) applyRotation(); });
+map.on('zoomend', ()=>{ if(refOverlay) applyRotation(); });
 function getBoundsFromCenter(c,scale){
   const lh=(baseLatSpan*scale)/2, lngh=(baseLngSpan*scale)/2;
   return L.latLngBounds([c.lat-lh,c.lng-lngh],[c.lat+lh,c.lng+lngh]);
@@ -2439,9 +2503,9 @@ function csvEscape(v){
 function exportCSV(){
   const points=features.filter(f=>f.geometryType==='point');
   if(!points.length){ showStatus('No buildings to export yet','warn'); return; }
-  const headers=['ID','Type','Subtype','Name/Number','Census Houses','Note','Latitude','Longitude','Stage2 Completed','Household Head','Members','Remarks'];
+  const headers=['ID','Type','Subtype','HLB','Name/Number','Census Houses','Note','Latitude','Longitude','Stage2 Completed','Household Head','Members','Remarks'];
   const rows=points.map(f=>[
-    f.id, typeLabel(f.type), f.subtype||'', f.name||'', f.censusCount||0, f.note||'',
+    f.id, typeLabel(f.type), f.subtype||'', f.hlb||'', f.name||'', f.censusCount||0, f.note||'',
     f.coords && f.coords[0], f.coords && f.coords[1],
     f.stage2?'Yes':'No', (f.stage2Data&&f.stage2Data.head)||'', (f.stage2Data&&f.stage2Data.members)??'', (f.stage2Data&&f.stage2Data.remarks)||''
   ]);
@@ -2565,6 +2629,11 @@ if(_deferredStatus){
   showStatus('Open the Building tool and tap the map to start marking Stage 1','ok',5000);
 } else {
   showStatus('Stage 1 on the Map tab. Stage 2 in its own tab. Back up daily from Backup.','ok',5000);
+}
+
+// Auto-focus on existing features if any
+if(features.length > 0){
+  setTimeout(() => fitToArea(), 300);
 }
 </script>
 </body>
