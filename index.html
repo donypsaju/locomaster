@@ -48,7 +48,7 @@
 }
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   font-family:var(--font-ui);-webkit-font-smoothing:antialiased;touch-action:manipulation}
-button{font-family:inherit;color:inherit}
+button{font-family:inherit;color:inherit;cursor:pointer}
 input,select{font-family:inherit}
 ::selection{background:var(--signal-dim);color:var(--ink)}
 
@@ -135,7 +135,7 @@ input,select{font-family:inherit}
 .mini-fab-stack { 
   display:flex; flex-direction:column; gap:8px; opacity:0; pointer-events:none; 
   transform:translateY(-8px); transition:all 0.15s ease; position:absolute; 
-  top:100%; z-index:240; white-space:nowrap; margin-top:8px;
+  top:100%; z-index:9999; white-space:nowrap; margin-top:8px;
 }
 .mini-fab-stack.open { opacity:1; pointer-events:auto; transform:translateY(0); }
 .mini-fab:not(.right-align) .mini-fab-stack { left:0; align-items:flex-start; }
@@ -144,7 +144,7 @@ input,select{font-family:inherit}
 .util-btn{
   width:44px;height:44px;border-radius:50%;background:var(--s2);border:1px solid var(--line2);
   color:var(--ink2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;
-  box-shadow:0 2px 10px rgba(0,0,0,.4); transition:transform 0.1s;
+  box-shadow:0 2px 10px rgba(0,0,0,.4); transition:transform 0.1s; pointer-events:auto;
 }
 .util-btn:active{transform:scale(.93);background:var(--s3)}
 .util-btn.primary{background:var(--signal);color:#fff;border:none;box-shadow:0 4px 14px rgba(91,124,250,.4);}
@@ -154,7 +154,7 @@ input,select{font-family:inherit}
   display:flex; align-items:center; gap:8px; background:var(--s2);
   border:1px solid var(--line2); border-radius:28px; cursor:pointer;
   box-shadow:0 4px 14px rgba(0,0,0,.5); padding:4px 12px 4px 4px;
-  transition:transform 0.1s ease, background 0.1s ease;
+  transition:transform 0.1s ease, background 0.1s ease; pointer-events:auto;
 }
 .mini-fab.right-align .mf-item { flex-direction:row-reverse; padding:4px 4px 4px 12px; }
 .mf-item i {
@@ -168,8 +168,11 @@ input,select{font-family:inherit}
 .mf-item.active-state i { background:var(--signal-dim); color:var(--signal); }
 .mf-item.active-state span { color:var(--signal); }
 
-/* Left floating cluster */
-#map-left-cluster{position:absolute;top:10px;left:10px;z-index:240;display:flex;flex-direction:column;gap:8px;max-width:min(250px,62vw)}
+/* Custom UI Layers over map - VERY HIGH Z-INDEX to prevent Leaflet blocking */
+#map-left-cluster{position:absolute;top:12px;left:12px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:min(250px,62vw);pointer-events:auto;}
+#map-util-row{position:absolute;top:12px;right:64px;z-index:9999;display:flex;flex-direction:column;gap:10px;pointer-events:auto;}
+#fab-cluster{position:absolute;bottom:calc(var(--tbh)+16px);right:16px;z-index:9999;display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:auto;}
+
 #map-search-toggle{
   width:44px;height:44px;border-radius:50%;background:var(--s2);border:1px solid var(--line2);
   color:var(--ink2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;
@@ -205,7 +208,7 @@ input,select{font-family:inherit}
 
 /* Mode pill */
 #mode-pill{
-  position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:245;
+  position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:9999;
   background:var(--s2);border:1px solid var(--signal);border-radius:20px;
   padding:7px 16px;font-size:12px;font-weight:600;color:var(--signal);display:none;
   align-items:center;gap:7px;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.5);cursor:pointer;
@@ -217,7 +220,7 @@ input,select{font-family:inherit}
 #status{
   position:absolute;top:54px;left:50%;transform:translateX(-50%);
   background:var(--s2);border:1px solid var(--line2);border-radius:20px;
-  padding:7px 15px;font-size:11px;font-weight:600;z-index:320;
+  padding:7px 15px;font-size:11px;font-weight:600;z-index:9999;
   display:none;white-space:nowrap;max-width:88vw;overflow:hidden;text-overflow:ellipsis;
   box-shadow:0 4px 16px rgba(0,0,0,.4);color:var(--ink);align-items:center;gap:6px;
 }
@@ -228,7 +231,7 @@ input,select{font-family:inherit}
 
 /* Drag hint */
 #drag-hint{
-  position:absolute;top:54px;right:10px;z-index:250;
+  position:absolute;top:54px;right:10px;z-index:9999;
   background:var(--s2);border:1px solid #f5a62355;border-radius:11px;
   padding:8px 11px;font-size:10px;color:var(--warn);display:none;
   align-items:center;gap:7px;line-height:1.4;max-width:190px;
@@ -239,18 +242,13 @@ input,select{font-family:inherit}
 #bnd-edit-bar{
   position:absolute;bottom:calc(var(--tbh)+12px);left:50%;transform:translateX(-50%);
   background:var(--s2);border:1px solid #f5a62355;border-radius:11px;
-  padding:7px 14px;z-index:260;font-size:10.5px;color:var(--warn);
+  padding:7px 14px;z-index:9999;font-size:10.5px;color:var(--warn);
   display:none;align-items:center;gap:10px;white-space:nowrap;
 }
 #bnd-edit-bar.on{display:flex}
 .bebtn{background:var(--signal);border:none;color:#fff;border-radius:7px;padding:8px 12px;font-size:11px;cursor:pointer;font-weight:600}
 .bebtn.danger{background:var(--danger)}
 
-/* Map utility row */
-#map-util-row{ position:absolute; top:10px; right:50px; z-index:240; display:flex; flex-direction:column; gap:8px;}
-
-/* FAB cluster */
-#fab-cluster{position:absolute;bottom:calc(var(--tbh)+12px);right:10px;z-index:270;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 #fab-stack{display:flex;flex-direction:column;align-items:flex-end;gap:9px;
   opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .15s ease,transform .15s ease}
 #fab-stack.open{opacity:1;pointer-events:auto;transform:translateY(0)}
@@ -286,9 +284,9 @@ input,select{font-family:inherit}
 /* Image overlay controls */
 #geocontrols{
   position:absolute;bottom:calc(var(--tbh)+12px);left:50%;transform:translateX(-50%);
-  z-index:280;background:var(--s2);border:1px solid var(--line2);
+  z-index:9999;background:var(--s2);border:1px solid var(--line2);
   border-radius:var(--r-lg);padding:15px 16px;width:min(340px,92vw);
-  display:none;box-shadow:0 8px 32px rgba(0,0,0,.55);
+  display:none;box-shadow:0 8px 32px rgba(0,0,0,.55); pointer-events:auto;
 }
 #geocontrols.on{display:block}
 #geocontrols h4{font-size:12px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px}
@@ -486,7 +484,7 @@ input,select{font-family:inherit}
 
 /* ── CONTEXT MENU ── */
 #ctx{
-  position:absolute;z-index:500;background:var(--s3);border:1px solid var(--line2);
+  position:absolute;z-index:9999;background:var(--s3);border:1px solid var(--line2);
   border-radius:13px;padding:6px;min-width:188px;display:none;
   box-shadow:0 10px 30px rgba(0,0,0,.65);
 }
@@ -501,7 +499,7 @@ input,select{font-family:inherit}
 #undo-bar{
   position:absolute;bottom:calc(var(--tbh)+12px);left:50%;transform:translateX(-50%);
   background:var(--s2);border:1px solid var(--line2);border-radius:11px;
-  padding:10px 16px;font-size:12px;z-index:450;display:none;
+  padding:10px 16px;font-size:12px;z-index:9999;display:none;
   align-items:center;gap:12px;box-shadow:0 4px 16px rgba(0,0,0,.4);
 }
 #undo-bar.on{display:flex}
@@ -551,8 +549,6 @@ input,select{font-family:inherit}
   #screens { position: absolute; left: 0; top: 0; width: 100vw; height: 100vh; overflow: visible; display: block; background: transparent; }
   #screen-map { position: absolute; inset: 0; display: block; padding: 0; }
   #map { position: absolute; inset: 0; width: 100vw; height: 100vh; background: transparent; }
-  
-  /* Make Labels Darker and clearer for paper print */
   .map-label { color: #000 !important; text-shadow: 1px 1px 3px #fff, -1px -1px 3px #fff, 1px -1px 3px #fff, -1px 1px 3px #fff !important; }
 }
 
@@ -616,33 +612,33 @@ input,select{font-family:inherit}
         </div>
 
         <div id="map-layers-cluster" class="mini-fab">
-          <button class="util-btn" id="layer-fab-main" onclick="toggleLayers()"><i class="ti ti-map-2"></i></button>
+          <button class="util-btn" id="layer-fab-main" onclick="event.stopPropagation(); toggleLayers()"><i class="ti ti-map-2"></i></button>
           <div id="layer-stack" class="mini-fab-stack">
             <!-- New Default Plain Map added to the list -->
-            <div class="mf-item active-state" data-maptype="plain" onclick="switchMapType('plain')">
+            <div class="mf-item active-state" data-maptype="plain" onclick="event.stopPropagation(); switchMapType('plain')">
               <i class="ti ti-map-2"></i><span>Plain Map (Default)</span>
             </div>
-            <div class="mf-item" data-maptype="osm" onclick="switchMapType('osm')">
+            <div class="mf-item" data-maptype="osm" onclick="event.stopPropagation(); switchMapType('osm')">
               <i class="ti ti-map"></i><span>Street Map</span>
             </div>
-            <div class="mf-item" data-maptype="sat" onclick="switchMapType('sat')">
+            <div class="mf-item" data-maptype="sat" onclick="event.stopPropagation(); switchMapType('sat')">
               <i class="ti ti-satellite"></i><span>Satellite</span>
             </div>
-            <div class="mf-item" data-maptype="none" onclick="switchMapType('none')">
+            <div class="mf-item" data-maptype="none" onclick="event.stopPropagation(); switchMapType('none')">
               <i class="ti ti-square"></i><span>Blank Canvas</span>
             </div>
-            <div class="mf-item" onclick="document.getElementById('fileup').click()">
+            <div class="mf-item" onclick="event.stopPropagation(); document.getElementById('fileup').click()">
               <i class="ti ti-photo-plus"></i><span>Reference Photo</span>
             </div>
           </div>
         </div>
 
-        <button id="mark-here-btn" onclick="markHereGPS()">
+        <button id="mark-here-btn" onclick="event.stopPropagation(); markHereGPS()">
           <i class="ti ti-home-plus"></i><span>Mark Here</span>
         </button>
         <div id="walk-distance-badge">
           <i class="ti ti-route"></i><span>0 m</span>
-          <button onclick="clearWalkTrail()" title="Clear trail"><i class="ti ti-x" style="font-size:14px"></i></button>
+          <button onclick="event.stopPropagation(); clearWalkTrail()" title="Clear trail"><i class="ti ti-x" style="font-size:14px"></i></button>
         </div>
       </div>
 
@@ -689,17 +685,17 @@ input,select{font-family:inherit}
         </div>
       </div>
 
-      <!-- NEW: DEDICATED PRINT BUTTON -->
+      <!-- DEDICATED PRINT & UTIL BUTTONS -->
       <div id="map-util-row">
-        <button class="util-btn primary" onclick="printMap()" style="margin-bottom: 8px;" title="Print Layout Map"><i class="ti ti-printer"></i></button>
+        <button class="util-btn primary" onclick="event.stopPropagation(); printMap()" title="Print Layout Map"><i class="ti ti-printer"></i></button>
 
         <div id="map-util-cluster" class="mini-fab right-align">
-          <button class="util-btn" id="util-fab-main" onclick="toggleUtils()"><i class="ti ti-tools"></i></button>
+          <button class="util-btn" id="util-fab-main" onclick="event.stopPropagation(); toggleUtils()"><i class="ti ti-tools"></i></button>
           <div id="util-stack" class="mini-fab-stack">
-            <div class="mf-item" onclick="undoLast(); showStatus('Undoing last action', 'warn', 1500)">
+            <div class="mf-item" onclick="event.stopPropagation(); undoLast(); showStatus('Undoing last action', 'warn', 1500)">
               <i class="ti ti-arrow-back-up"></i><span>Undo Last</span>
             </div>
-            <div class="mf-item" onclick="fitToArea(); showStatus('Refocusing map', 'ok', 1500)">
+            <div class="mf-item" onclick="event.stopPropagation(); fitToArea(); showStatus('Refocusing map', 'ok', 1500)">
               <i class="ti ti-arrows-maximize"></i><span>Fit to Area</span>
             </div>
           </div>
@@ -708,16 +704,16 @@ input,select{font-family:inherit}
 
       <div id="fab-cluster">
         <div id="fab-stack">
-          <div class="qm-row" id="qm-toggle" onclick="toggleQuickMark()">
+          <div class="qm-row" id="qm-toggle" onclick="event.stopPropagation(); toggleQuickMark()">
             <span>Quick Mark</span>
             <span class="qm-switch"><span class="qm-knob"></span></span>
           </div>
-          <div class="fab-item" data-mode="arrow" onclick="pickMode('arrow')"><i class="ti ti-arrow-move-right"></i><span>Order</span></div>
-          <div class="fab-item" data-mode="line" onclick="pickMode('line')"><i class="ti ti-road"></i><span>Road / River</span></div>
-          <div class="fab-item" data-mode="point" onclick="pickMode('point')"><i class="ti ti-home-plus"></i><span>Building</span></div>
-          <div class="fab-item" data-mode="boundary" onclick="pickMode('boundary')"><i class="ti ti-shape"></i><span>Boundary</span></div>
+          <div class="fab-item" data-mode="arrow" onclick="event.stopPropagation(); pickMode('arrow')"><i class="ti ti-arrow-move-right"></i><span>Order</span></div>
+          <div class="fab-item" data-mode="line" onclick="event.stopPropagation(); pickMode('line')"><i class="ti ti-road"></i><span>Road / River</span></div>
+          <div class="fab-item" data-mode="point" onclick="event.stopPropagation(); pickMode('point')"><i class="ti ti-home-plus"></i><span>Building</span></div>
+          <div class="fab-item" data-mode="boundary" onclick="event.stopPropagation(); pickMode('boundary')"><i class="ti ti-shape"></i><span>Boundary</span></div>
         </div>
-        <button id="fab-main" onclick="toggleFab()"><i class="ti ti-hand-stop"></i></button>
+        <button id="fab-main" onclick="event.stopPropagation(); toggleFab()"><i class="ti ti-hand-stop"></i></button>
       </div>
     </div>
 
@@ -1098,7 +1094,7 @@ const TILES = {
   osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM',maxZoom:22,maxNativeZoom:19}),
   sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:22,maxNativeZoom:20}),
   dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CARTO',maxZoom:22,maxNativeZoom:20}),
-  none: L.layerGroup() // Blank layer
+  none: L.layerGroup()
 };
 let currentBase = TILES.plain;
 currentBase.addTo(map);
@@ -1252,7 +1248,7 @@ function fuzzyMatch(query, text) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   SEARCH (place lookup via Photon/Komoot API)
+   SEARCH
    ════════════════════════════════════════════════════════════ */
 const searchInput = document.getElementById('search-input');
 const suggestions = document.getElementById('suggestions');
@@ -2369,344 +2365,4 @@ function loadImageOverlay(ev){
       document.getElementById('rotval').textContent='0°';
       imgAngle=0;
       const bounds=getBoundsFromCenter(c,1);
-      refOverlay=L.imageOverlay(url,bounds,{opacity:.5,zIndex:10}).addTo(map);
-      const dragIcon=L.divIcon({className:'overlay-drag',html:'<i class="ti ti-arrows-move"></i>',iconSize:[36,36],iconAnchor:[18,18]});
-      refMarkerCenter=L.marker(c,{draggable:true,icon:dragIcon,zIndexOffset:3000}).addTo(map);
-      
-      const updateRefPos = function(e){
-        const nc=e.target.getLatLng();
-        const sc=parseFloat(document.getElementById('img-scale').value);
-        refOverlay.setBounds(getBoundsFromCenter(nc,sc));
-        applyRotation();
-      };
-      
-      refMarkerCenter.on('drag', updateRefPos);
-      refMarkerCenter.on('move', updateRefPos);
-      
-      document.getElementById('geocontrols').classList.add('on');
-      applyRotation();
-    };
-    img.src=url;
-  };
-  reader.readAsDataURL(file);
-  ev.target.value='';
-}
-
-function nudgeOverlay(dir){
-  if(!refMarkerCenter || !refOverlay) return;
-  const ll = refMarkerCenter.getLatLng();
-  
-  const offset = (baseLatSpan * parseFloat(document.getElementById('img-scale').value)) * 0.05;
-  if(dir==='up') ll.lat += offset;
-  if(dir==='down') ll.lat -= offset;
-  if(dir==='left') ll.lng -= offset;
-  if(dir==='right') ll.lng += offset;
-  
-  refMarkerCenter.setLatLng(ll);
-  const sc = parseFloat(document.getElementById('img-scale').value);
-  refOverlay.setBounds(getBoundsFromCenter(ll,sc));
-  applyRotation();
-}
-
-function applyRotation(){
-  if(!refOverlay) return;
-  const el=refOverlay.getElement();
-  if(!el) return;
-  const currentTransform = el.style.transform || '';
-  
-  const noRotate = currentTransform.replace(/\s*rotate\([^)]*\)/g, '');
-  const newTransform = imgAngle!==0 ? noRotate + ` rotate(${imgAngle}deg)` : noRotate;
-  el.style.transform = newTransform;
-  el.style.transformOrigin = '50% 50%';
-}
-map.on('moveend', ()=>{ if(refOverlay) applyRotation(); });
-map.on('zoomend', ()=>{ if(refOverlay) applyRotation(); });
-
-function getBoundsFromCenter(c,scale){
-  const lh=(baseLatSpan*scale)/2, lngh=(baseLngSpan*scale)/2;
-  return L.latLngBounds([c.lat-lh,c.lng-lngh],[c.lat+lh,c.lng+lngh]);
-}
-function setOvScale(v){
-  if(!refOverlay || !refMarkerCenter) return;
-  document.getElementById('scval').textContent=parseFloat(v).toFixed(1)+'×';
-  refOverlay.setBounds(getBoundsFromCenter(refMarkerCenter.getLatLng(), parseFloat(v)));
-  applyRotation();
-}
-function setOvOpacity(v){ document.getElementById('opval').textContent=Math.round(v*100)+'%'; if(refOverlay) refOverlay.setOpacity(parseFloat(v)); }
-function setOvRotation(v){ imgAngle=parseFloat(v); document.getElementById('rotval').textContent=v+'°'; applyRotation(); }
-function lockOverlay(){
-  if(refMarkerCenter){ map.removeLayer(refMarkerCenter); refMarkerCenter=null; }
-  document.getElementById('geocontrols').classList.remove('on');
-  showStatus('Image locked — draw on top of it now','ok',3000);
-}
-function removeOverlay(){
-  if(refOverlay){ map.removeLayer(refOverlay); refOverlay=null; }
-  if(refMarkerCenter){ map.removeLayer(refMarkerCenter); refMarkerCenter=null; }
-  imgAngle=0;
-  document.getElementById('img-scale').value=1;
-  document.getElementById('img-opacity').value=0.5;
-  document.getElementById('img-rotate').value=0;
-  document.getElementById('opval').textContent='50%';
-  document.getElementById('scval').textContent='1.0×';
-  document.getElementById('rotval').textContent='0°';
-  document.getElementById('geocontrols').classList.remove('on');
-}
-function removeOverlayConfirm(){
-  if(refOverlay){ if(!confirm('Remove the aligned photo? This cannot be undone.')) return; }
-  removeOverlay();
-}
-
-/* ════════════════════════════════════════════════════════════
-   DATA PERSISTENCE + BACKUP DIRTY-STATE TRACKING
-   ════════════════════════════════════════════════════════════ */
-function saveData(){
-  try{
-    localStorage.setItem('census-v4', JSON.stringify(features));
-    markDirty();
-  }catch(e){
-    showStatus('Could not save data (storage full?)','err',4000);
-  }
-}
-function markDirty(){
-  changesSinceBackup++;
-  localStorage.setItem('census-changes-since-backup', String(changesSinceBackup));
-  updateBackupReminderUI();
-}
-function clearDirtyState(){
-  changesSinceBackup=0;
-  localStorage.setItem('census-changes-since-backup','0');
-  updateBackupReminderUI();
-}
-function clearAll(){
-  if(!confirm('Delete ALL features? This cannot be undone.')) return;
-  features=[]; undoStack=[];
-  if(searchMarker){ map.removeLayer(searchMarker); searchMarker=null; }
-  try{ localStorage.setItem('census-v4', JSON.stringify(features)); }catch(e){}
-  clearDirtyState();
-  renderAll();
-  showStatus('All data cleared','warn',2000);
-}
-
-/* ════════════════════════════════════════════════════════════
-   BACKUP REMINDER ENGINE
-   ════════════════════════════════════════════════════════════ */
-function isBackupOverdue(){
-  return features.length>0 && (lastBackupAt===0 || (Date.now()-lastBackupAt) > BACKUP_OVERDUE_MS);
-}
-function timeAgo(ts){
-  if(!ts) return 'Never';
-  const diff=Date.now()-ts;
-  const min=Math.floor(diff/60000);
-  if(min<1) return 'just now';
-  if(min<60) return min+' min ago';
-  const hr=Math.floor(min/60);
-  if(hr<24) return hr+' hr ago';
-  const day=Math.floor(hr/24);
-  return day+(day===1?' day ago':' days ago');
-}
-function updateBackupReminderUI(){
-  const overdue=isBackupOverdue();
-  const badge=document.getElementById('tab-backup-badge');
-  if(badge) badge.classList.toggle('show', overdue);
-
-  const banner=document.getElementById('reminder-banner');
-  if(overdue && !bannerDismissedThisSession){
-    banner.classList.add('on');
-    document.getElementById('reminder-text').textContent = lastBackupAt===0
-      ? `${features.length} feature${features.length===1?'':'s'} saved only on this device — back them up now`
-      : `No backup since ${timeAgo(lastBackupAt)} — back up before you lose today's work`;
-  } else {
-    banner.classList.remove('on');
-  }
-  if(activeTab==='backup') renderBackupTab();
-}
-function dismissReminderBanner(){
-  bannerDismissedThisSession=true;
-  document.getElementById('reminder-banner').classList.remove('on');
-}
-
-/* ════════════════════════════════════════════════════════════
-   BACKUP TAB
-   ════════════════════════════════════════════════════════════ */
-function renderBackupTab(){
-  const card=document.getElementById('backup-status-card');
-  const overdue=isBackupOverdue();
-  card.className='backup-status-card '+(lastBackupAt===0?'never':(overdue?'overdue':'ok'));
-  document.getElementById('backup-rel-time').textContent = lastBackupAt ? timeAgo(lastBackupAt) : 'Never backed up';
-  document.getElementById('backup-abs-time').textContent = lastBackupAt ? new Date(lastBackupAt).toLocaleString() : 'Export a backup to protect your work';
-  document.getElementById('backup-changes-count').textContent = changesSinceBackup;
-
-  const counts={
-    point: features.filter(f=>f.geometryType==='point').length,
-    line: features.filter(f=>f.geometryType==='line').length,
-    boundary: features.filter(f=>f.geometryType==='boundary').length,
-    arrow: features.filter(f=>f.geometryType==='arrow').length
-  };
-  document.getElementById('backup-current-counts').textContent =
-    `${counts.point} buildings · ${counts.line} roads · ${counts.boundary} boundaries · ${counts.arrow} arrows`;
-}
-
-/* ════════════════════════════════════════════════════════════
-   EXPORT — JSON (full-fidelity backup) and CSV (report)
-   ════════════════════════════════════════════════════════════ */
-function formatLocalDateForFilename(d){
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-}
-function exportJSON(){
-  if(!features.length){ showStatus('No data to back up yet','warn'); return; }
-  const blob=new Blob([JSON.stringify(features,null,2)],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='census_backup_'+formatLocalDateForFilename(new Date())+'.json';
-  a.click(); URL.revokeObjectURL(a.href);
-  recordBackupTaken();
-  showStatus('Backup saved ✓ — keep this file safe','ok',3000);
-}
-function recordBackupTaken(){
-  lastBackupAt=Date.now();
-  localStorage.setItem('census-last-backup', String(lastBackupAt));
-  clearDirtyState();
-}
-function csvEscape(v){
-  const s=String(v??'');
-  if(/[",\n\r]/.test(s)) return '"'+s.replace(/"/g,'""')+'"';
-  return s;
-}
-function exportCSV(){
-  const points=features.filter(f=>f.geometryType==='point');
-  if(!points.length){ showStatus('No buildings to export yet','warn'); return; }
-  const headers=['ID','Type','Subtype','HLB','Name/Number','Census Houses','Note','Latitude','Longitude','Stage2 Completed','Household Head','Members','Remarks'];
-  const rows=points.map(f=>[
-    f.id, typeLabel(f.type), f.subtype||'', f.hlb||'', f.name||'', f.censusCount||0, f.note||'',
-    f.coords && f.coords[0], f.coords && f.coords[1],
-    f.stage2?'Yes':'No', (f.stage2Data&&f.stage2Data.head)||'', (f.stage2Data&&f.stage2Data.members)??'', (f.stage2Data&&f.stage2Data.remarks)||''
-  ]);
-  const csv=[headers,...rows].map(r=>r.map(csvEscape).join(',')).join('\r\n');
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='census_buildings_'+formatLocalDateForFilename(new Date())+'.csv';
-  a.click(); URL.revokeObjectURL(a.href);
-  showStatus('CSV exported ✓','ok',2500);
-}
-
-/* ════════════════════════════════════════════════════════════
-   IMPORT — restore from a backup .json file
-   ════════════════════════════════════════════════════════════ */
-let pendingImport=null;
-function triggerImport(){ document.getElementById('import-file-input').click(); }
-function countByType(arr){
-  const c={point:0,line:0,boundary:0,arrow:0};
-  arr.forEach(f=>{ if(c[f.geometryType]!==undefined) c[f.geometryType]++; });
-  return c;
-}
-function handleImportFile(ev){
-  const file=ev.target.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=function(e){
-    let data;
-    try{ data=JSON.parse(e.target.result); }
-    catch(err){ showStatus('That file is not valid JSON — choose a Census Mapper backup file','err',5000); ev.target.value=''; return; }
-    if(!Array.isArray(data)){ showStatus('That file does not look like a Census Mapper backup','err',5000); ev.target.value=''; return; }
-    const valid=data.filter(f=>f && typeof f==='object' && ['point','line','arrow','boundary'].includes(f.geometryType) && Array.isArray(f.coords));
-    const skipped=data.length-valid.length;
-    if(!valid.length){ showStatus('No usable features found in that file','err',5000); ev.target.value=''; return; }
-    pendingImport={data:valid, skipped};
-    openImportModal(valid, skipped);
-    ev.target.value='';
-  };
-  reader.readAsText(file);
-}
-function openImportModal(valid, skipped){
-  const counts=countByType(valid);
-  document.getElementById('import-summary').innerHTML =
-    `<div><b>${counts.point}</b> buildings, <b>${counts.line}</b> roads/rivers, <b>${counts.boundary}</b> boundaries, <b>${counts.arrow}</b> arrows in this file</div>`
-    + (skipped>0 ? `<div class="im-warn" style="margin-top:6px">${skipped} entries skipped (unrecognised format)</div>` : '')
-    + `<div style="margin-top:10px">You currently have <b>${features.length}</b> feature${features.length===1?'':'s'} saved on this device.</div>`;
-  document.getElementById('import-overlay').classList.add('open');
-}
-function closeImportModal(){ document.getElementById('import-overlay').classList.remove('open'); pendingImport=null; }
-function applyImport(mode){
-  if(!pendingImport) return;
-  if(mode==='replace' && !confirm('Replace ALL current data with this backup? Your current '+features.length+' feature(s) will be permanently removed.')) return;
-  const incoming = pendingImport.data.map(f=>({...f, id:newId()}));
-  if(mode==='replace') features=incoming;
-  else features=features.concat(incoming);
-  saveData();
-  closeImportModal();
-  renderAll();
-  showStatus(`Imported ${incoming.length} feature${incoming.length===1?'':'s'} (${mode==='replace'?'replaced':'merged'}) ✓`,'ok',3500);
-}
-
-/* ════════════════════════════════════════════════════════════
-   STATUS TOAST
-   ════════════════════════════════════════════════════════════ */
-let statusTimer=null;
-function showStatus(msg,type='ok',dur=3000){
-  const el=document.getElementById('status');
-  if(!el){ _deferredStatus={msg,type,dur}; return; }
-  const icons={ok:'ti-info-circle',warn:'ti-alert-circle',err:'ti-circle-x'};
-  document.getElementById('sicon').className='ti '+(icons[type]||'ti-info-circle');
-  document.getElementById('smsg').textContent=msg;
-  el.className='on '+type;
-  clearTimeout(statusTimer); statusTimer=null;
-  if(dur>0) statusTimer=setTimeout(clearStatus,dur);
-}
-function clearStatus(){
-  const el=document.getElementById('status');
-  if(el) el.className='';
-  clearTimeout(statusTimer); statusTimer=null;
-}
-function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-/* ════════════════════════════════════════════════════════════
-   KEYBOARD SHORTCUTS
-   ════════════════════════════════════════════════════════════ */
-document.addEventListener('keydown', e=>{
-  const tag=e.target.tagName;
-  if(tag==='INPUT' || tag==='TEXTAREA' || tag==='SELECT') return;
-  if(e.target.isContentEditable) return;
-  if(e.ctrlKey || e.metaKey || e.altKey) return;
-  if(activeTab!=='map') return;
-  const k=e.key.toLowerCase();
-  if(k==='v') setMode('view');
-  if(k==='p') setMode('point');
-  if(k==='l') setMode('line');
-  if(k==='b') setMode('boundary');
-  if(k==='a') setMode('arrow');
-  if(k==='z') undoLast();
-  if(k==='escape'){
-    closeCtx(); closeModal();
-    if(draggingMk) endDragMode(false);
-    if(editBndFid!==null) cancelBoundaryEdit();
-    clearArrowSelection();
-    setMode('view');
-    if(layersOpen) toggleLayers();
-    if(utilsOpen) toggleUtils();
-  }
-});
-
-/* ════════════════════════════════════════════════════════════
-   INIT
-   ════════════════════════════════════════════════════════════ */
-renderAll();
-document.getElementById('qm-toggle').classList.toggle('on', quickMarkOn);
-if(walkTrail.length>1){ redrawWalkTrail(); updateWalkBadge(); }
-updateBackupReminderUI();
-
-if(_deferredStatus){
-  showStatus(_deferredStatus.msg, _deferredStatus.type, _deferredStatus.dur);
-  _deferredStatus=null;
-} else if(!features.length){
-  showStatus('Open the Building tool and tap the map to start marking Stage 1','ok',5000);
-} else {
-  showStatus('Stage 1 on the Map tab. Stage 2 in its own tab. Back up daily from Backup.','ok',5000);
-}
-
-// Auto-focus on existing features if any
-if(features.length > 0){
-  setTimeout(() => fitToArea(), 300);
-}
-</script>
-</body>
-</html>
+      refOverlay=L.imageOverlay(url,bounds,{I encountered an error doing what you asked. Could you try again?
