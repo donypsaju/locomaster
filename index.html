@@ -297,7 +297,11 @@ input,select{font-family:inherit}
 .gbtn{flex:1;padding:10px;border-radius:10px;border:1px solid var(--line2);background:var(--s3);color:var(--ink);font-size:11.5px;cursor:pointer;transition:.1s;font-weight:600}
 .gbtn:active{opacity:.7}
 .gbtn.pr{background:var(--signal);border-color:var(--signal);color:#fff}
+
+/* NEW FIX FOR DRAG */
 .overlay-drag{
+  touch-action: none !important;
+  pointer-events: auto !important;
   background:var(--signal);color:#fff;border-radius:50%;border:2px solid rgba(255,255,255,.4);
   display:flex;align-items:center;justify-content:center;font-size:18px;
   box-shadow:0 4px 12px rgba(0,0,0,.5);width:36px;height:36px;
@@ -503,15 +507,38 @@ input,select{font-family:inherit}
 #undo-bar b{color:var(--ink)}
 .ubtn{background:var(--signal);border:none;color:#fff;border-radius:7px;padding:8px 14px;font-size:11px;cursor:pointer;font-weight:700}
 
-/* ── CENSUS SHAPES (map markers) ── */
+/* ── CENSUS SHAPES (NEW STYLING) ── */
 .census-wrap{display:flex;align-items:center;justify-content:center;position:relative}
-.sh-pucca{width:16px;height:16px;border:2.5px solid #fff;background:#fff}
-.sh-pucca.nr{background:#777;border-color:#ccc}
-.sh-kutcha{width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-bottom:16px solid #fff;position:relative}
-.sh-kutcha::after{content:'';position:absolute;top:3px;left:-6px;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid #131318}
-.sh-kutcha.nr::after{border-bottom-color:#777}
-.sh-kutcha.nr{border-bottom-color:#ccc}
-.sh-inst{width:18px;height:18px;border-radius:50%;border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff}
+
+/* New Square Box Style for Houses */
+.census-box {
+    width: 32px; height: 32px;
+    border: 2px solid #000;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Courier New', Courier, monospace; font-size: 11px; font-weight: 700;
+    color: #000; border-radius: 2px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+/* Residential (White) */
+.census-box.res { background: #ffffff; }
+/* Non-Residential (Shaded Hatched Pattern) */
+.census-box.nr { 
+    background: repeating-linear-gradient(45deg, #aaaaaa, #aaaaaa 2.5px, #ffffff 2.5px, #ffffff 5px); 
+}
+/* Text inside the box */
+.census-box-text {
+    background: rgba(255,255,255,0.9);
+    padding: 1px 3px;
+    border-radius: 2px;
+    max-width: 90%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Fallback icons for Institutions (remains same) */
+.sh-inst{width:20px;height:20px;border-radius:50%;border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff}
+
 .stage2-badge{position:absolute;top:-4px;right:-4px;width:10px;height:10px;background:var(--ok);border:1px solid #fff;border-radius:50%}
 .gps-pulse{width:14px;height:14px;background:var(--signal);border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(91,124,250,.3),0 0 12px rgba(91,124,250,.6);animation:gpspulse 2s infinite}
 .sh-drag-ring{position:absolute;inset:-6px;border-radius:50%;border:2px dashed var(--warn);animation:rotatering 2s linear infinite}
@@ -642,6 +669,18 @@ input,select{font-family:inherit}
           <input type="range" id="img-scale" min="0.1" max="6" step="0.05" value="1" oninput="setOvScale(this.value)"/></div>
         <div class="sg"><label><span>Rotation</span><span id="rotval">0°</span></label>
           <input type="range" id="img-rotate" min="-180" max="180" step="1" value="0" oninput="setOvRotation(this.value)"/></div>
+        
+        <!-- NEW FEATURE: NUDGE CONTROLS -->
+        <div class="sg">
+          <label><span>Nudge Position</span></label>
+          <div style="display:flex;gap:4px;justify-content:space-between;margin-top:4px;">
+             <button class="gbtn" style="padding:6px;font-size:12px;" onclick="nudgeOverlay('up')">▲ Up</button>
+             <button class="gbtn" style="padding:6px;font-size:12px;" onclick="nudgeOverlay('down')">▼ Down</button>
+             <button class="gbtn" style="padding:6px;font-size:12px;" onclick="nudgeOverlay('left')">◀ Left</button>
+             <button class="gbtn" style="padding:6px;font-size:12px;" onclick="nudgeOverlay('right')">▶ Right</button>
+          </div>
+        </div>
+
         <div class="geo-btns">
           <button class="gbtn" onclick="removeOverlayConfirm()">Remove</button>
           <button class="gbtn pr" onclick="lockOverlay()"><i class="ti ti-lock" style="font-size:14px;margin-right:4px"></i>Lock &amp; Draw</button>
@@ -1809,14 +1848,12 @@ function openModal(type, coords, existingFeature=null){
   document.getElementById('form-boundary').style.display = type==='boundary'?'block':'none';
 
   if(type==='point'){
-    // Update HLB dropdown before populating
     updateHLBDropdown(existingFeature ? existingFeature.hlb : '');
     document.getElementById('pt-type').value = existingFeature?existingFeature.type:'pucca-house';
     document.getElementById('pt-subtype').value = existingFeature?(existingFeature.subtype||'res'):'res';
     document.getElementById('pt-name').value = existingFeature?(existingFeature.name||''):'';
     document.getElementById('pt-census').value = existingFeature?(existingFeature.censusCount||1):1;
     document.getElementById('pt-note').value = existingFeature?(existingFeature.note||''):'';
-    // select HLB
     if(existingFeature && existingFeature.hlb){
       const sel = document.getElementById('pt-hlb');
       sel.value = existingFeature.hlb;
@@ -1876,7 +1913,6 @@ function saveFeature(){
     }
     feature.name=document.getElementById('pt-name').value.trim();
     feature.note=document.getElementById('pt-note').value.trim();
-    // HLB
     const hlbVal = document.getElementById('pt-hlb').value.trim();
     if(hlbVal){ addHLB(hlbVal); feature.hlb = hlbVal; } else { feature.hlb = ''; }
     qmLast = {type:feature.type, subtype:feature.subtype, censusCount:feature.censusCount||1};
@@ -2011,29 +2047,40 @@ function renderAll(){
   });
 
   features.filter(f=>f.geometryType==='point').forEach(f=>{
-    let html='', iconSize=[22,22];
+    let html='', iconSize=[32,32];
     const house=isHouseType(f.type);
+    
+    // NEW RENDER LOGIC FOR BOXES WITH NUMBERS
     if(house){
-      const isNR=f.subtype==='nr';
-      html = f.type==='pucca-house'
-        ? `<div class="census-wrap"><div class="sh-pucca${isNR?' nr':''}"></div></div>`
-        : `<div class="census-wrap"><div class="sh-kutcha${isNR?' nr':''}"></div></div>`;
+      const isNR = f.subtype==='nr';
+      const boxNumber = f.name ? f.name : ((f.censusCount && f.censusCount>1) ? f.censusCount : '');
+      const textDiv = boxNumber ? `<div class="census-box-text">${esc(boxNumber)}</div>` : '';
+
+      html = `<div class="census-wrap"><div class="census-box ${isNR?'nr':'res'}">${textDiv}</div></div>`;
+      iconSize = [36, 36];
     } else {
       const m=INSTITUTION_META[f.type]||{letter:'?',color:'#6b7280'};
-      html=`<div class="census-wrap"><div class="sh-inst" style="background:${m.color};width:20px;height:20px;border-radius:50%;font-size:9px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;">${m.letter}</div></div>`;
-      iconSize=[24,24];
+      html=`<div class="census-wrap"><div class="sh-inst" style="background:${m.color};width:24px;height:24px;border-radius:50%;font-size:10px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;">${m.letter}</div></div>`;
+      iconSize=[28,28];
     }
+
     if(f.stage2) html += '<div class="stage2-badge"></div>';
+    
     const icon=L.divIcon({className:'',html,iconSize,iconAnchor:[iconSize[0]/2,iconSize[1]/2]});
     const mk=L.marker(f.coords,{icon,draggable:false,zIndexOffset:100}).addTo(mkLayer);
     allMarkerRefs[f.id]=mk;
 
     let labelText='';
-    if(f.name){ labelText=f.name; if(f.censusCount && f.censusCount>1) labelText+=` (${f.censusCount})`; }
-    else if(house){ labelText = (f.censusCount && f.censusCount>1) ? `(${f.censusCount})` : '1'; }
-    else { labelText = typeLabel(f.type); }
-    if(f.hlb) labelText += ` [${f.hlb}]`;
-    mk.bindTooltip(labelText,{permanent:true,direction:'right',className:'map-label',offset:[12,0]});
+    // Show names for institutions only (since house numbers are inside the box now)
+    if(!house && f.name){ labelText=f.name; }
+    else if(!house) { labelText = typeLabel(f.type); }
+    
+    // Always append HLB details outside if available
+    if(f.hlb) labelText += (labelText ? ` [HLB: ${f.hlb}]` : `[HLB: ${f.hlb}]`);
+
+    if(labelText) {
+        mk.bindTooltip(labelText,{permanent:true,direction:'right',className:'map-label',offset:[iconSize[0]/2 + 4, 0]});
+    }
 
     mk.on('click', function(e){
       L.DomEvent.stopPropagation(e);
@@ -2298,7 +2345,7 @@ function fitToArea(){
 function printMap(){ window.print(); }
 
 /* ════════════════════════════════════════════════════════════
-   IMAGE OVERLAY (fixed rotation & scale)
+   IMAGE OVERLAY (fixed rotation & scale) + Nudge Fix
    ════════════════════════════════════════════════════════════ */
 function loadImageOverlay(ev){
   const file=ev.target.files[0]; if(!file) return;
@@ -2323,12 +2370,17 @@ function loadImageOverlay(ev){
       refOverlay=L.imageOverlay(url,bounds,{opacity:.5,zIndex:10}).addTo(map);
       const dragIcon=L.divIcon({className:'overlay-drag',html:'<i class="ti ti-arrows-move"></i>',iconSize:[36,36],iconAnchor:[18,18]});
       refMarkerCenter=L.marker(c,{draggable:true,icon:dragIcon,zIndexOffset:3000}).addTo(map);
-      refMarkerCenter.on('drag', function(e){
+      
+      const updateRefPos = function(e){
         const nc=e.target.getLatLng();
         const sc=parseFloat(document.getElementById('img-scale').value);
         refOverlay.setBounds(getBoundsFromCenter(nc,sc));
         applyRotation();
-      });
+      };
+      // Bind both drag and move events to ensure responsiveness
+      refMarkerCenter.on('drag', updateRefPos);
+      refMarkerCenter.on('move', updateRefPos);
+      
       document.getElementById('geocontrols').classList.add('on');
       applyRotation();
     };
@@ -2337,19 +2389,37 @@ function loadImageOverlay(ev){
   reader.readAsDataURL(file);
   ev.target.value='';
 }
+
+function nudgeOverlay(dir){
+  if(!refMarkerCenter || !refOverlay) return;
+  const ll = refMarkerCenter.getLatLng();
+  // Calculate a small nudge amount based on current scale
+  const offset = (baseLatSpan * parseFloat(document.getElementById('img-scale').value)) * 0.05;
+  if(dir==='up') ll.lat += offset;
+  if(dir==='down') ll.lat -= offset;
+  if(dir==='left') ll.lng -= offset;
+  if(dir==='right') ll.lng += offset;
+  
+  refMarkerCenter.setLatLng(ll);
+  const sc = parseFloat(document.getElementById('img-scale').value);
+  refOverlay.setBounds(getBoundsFromCenter(ll,sc));
+  applyRotation();
+}
+
 function applyRotation(){
   if(!refOverlay) return;
   const el=refOverlay.getElement();
   if(!el) return;
   const currentTransform = el.style.transform || '';
   // Remove any existing rotation
-  const noRotate = currentTransform.replace(/rotate\([^)]*\)/g, '');
+  const noRotate = currentTransform.replace(/\s*rotate\([^)]*\)/g, '');
   const newTransform = imgAngle!==0 ? noRotate + ` rotate(${imgAngle}deg)` : noRotate;
   el.style.transform = newTransform;
   el.style.transformOrigin = '50% 50%';
 }
 map.on('moveend', ()=>{ if(refOverlay) applyRotation(); });
 map.on('zoomend', ()=>{ if(refOverlay) applyRotation(); });
+
 function getBoundsFromCenter(c,scale){
   const lh=(baseLatSpan*scale)/2, lngh=(baseLngSpan*scale)/2;
   return L.latLngBounds([c.lat-lh,c.lng-lngh],[c.lat+lh,c.lng+lngh]);
