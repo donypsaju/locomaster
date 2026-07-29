@@ -428,12 +428,13 @@ input, select { font-family: inherit; }
 
 /* ── MODAL / SHEET SHARED ── */
 .ovl {
-  position: absolute; inset: 0; background: rgba(0,0,0,.72); z-index: 800;
-  display: none; align-items: flex-end; justify-content: center;
+  position: absolute; inset: 0; background: rgba(0,0,0,.85); z-index: 99999;
+  display: none; align-items: center; justify-content: center;
   padding-bottom: env(safe-area-inset-bottom,0px);
 }
 .ovl.open { display: flex; }
-#import-overlay { z-index: 820; }
+#moverlay { align-items: flex-end; }
+#import-overlay { z-index: 100000; align-items: flex-end; }
 .sheet {
   background: var(--s2); border: 1px solid var(--line2); border-radius: var(--r-lg) var(--r-lg) 0 0;
   padding: 18px 16px 22px; width: 100%; max-width: 460px; max-height: 88vh; overflow-y: auto;
@@ -471,7 +472,7 @@ input, select { font-family: inherit; }
 
 /* ── CONTEXT MENU ── */
 #ctx {
-  position: absolute; z-index: 9999; background: var(--s3); border: 1px solid var(--line2);
+  position: absolute; z-index: 99999; background: var(--s3); border: 1px solid var(--line2);
   border-radius: 13px; padding: 6px; min-width: 188px; display: none;
   box-shadow: 0 10px 30px rgba(0,0,0,.65);
 }
@@ -493,14 +494,14 @@ input, select { font-family: inherit; }
 #undo-bar b { color: var(--ink); }
 .ubtn { background: var(--signal); border: none; color: #fff; border-radius: 7px; padding: 8px 14px; font-size: 11px; cursor: pointer; font-weight: 700; }
 
-/* ── CENSUS SHAPES ── */
+/* ── CENSUS SHAPES (UPDATED FOR READABILITY) ── */
 .census-wrap { display: flex; align-items: center; justify-content: center; position: relative; }
 
 .census-box {
-    width: 32px; height: 32px;
+    width: 48px; height: 28px;
     border: 2px solid #000;
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Courier New', Courier, monospace; font-size: 11px; font-weight: 700;
+    font-family: 'Courier New', Courier, monospace; font-size: 13px; font-weight: 800;
     color: #000; border-radius: 2px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
@@ -508,11 +509,11 @@ input, select { font-family: inherit; }
 .census-box.nr { background: repeating-linear-gradient(45deg, #aaaaaa, #aaaaaa 2.5px, #ffffff 2.5px, #ffffff 5px); }
 .census-box-text {
     background: rgba(255,255,255,0.9);
-    padding: 1px 3px; border-radius: 2px;
-    max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    padding: 0 4px; border-radius: 2px;
+    white-space: nowrap; line-height: 1.2; letter-spacing: -0.5px;
 }
 
-.sh-inst { width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff; }
+.sh-inst { width: 24px; height: 24px; border-radius: 50%; border: 2.5px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
 .stage2-badge { position: absolute; top: -4px; right: -4px; width: 10px; height: 10px; background: var(--ok); border: 1px solid #fff; border-radius: 50%; }
 .gps-pulse { width: 14px; height: 14px; background: var(--signal); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 4px rgba(91,124,250,.3), 0 0 12px rgba(91,124,250,.6); animation: gpspulse 2s infinite; }
 .sh-drag-ring { position: absolute; inset: -6px; border-radius: 50%; border: 2px dashed var(--warn); animation: rotatering 2s linear infinite; }
@@ -526,16 +527,16 @@ input, select { font-family: inherit; }
 
 /* ── PRINT ── */
 @media print {
-  @page { size: landscape; margin: 10mm; }
-  body { background: white !important; }
+  @page { size: 31.6cm 25.7cm; margin: 0; }
+  body, html { width: 31.6cm !important; height: 25.7cm !important; background: white !important; margin: 0; padding: 0; }
   #header, #tabbar, #status, #drag-hint, #ctx, #undo-bar, .ovl, #geocontrols, #mode-pill,
   #map-left-cluster, #map-util-row, #fab-cluster, #bnd-edit-bar, #reminder-banner, .leaflet-control-container {
     display: none !important;
   }
-  #app-shell { height: auto; display: block; overflow: visible; }
-  #screens { position: absolute; left: 0; top: 0; width: 100vw; height: 100vh; overflow: visible; display: block; background: transparent; }
-  #screen-map { position: absolute; inset: 0; display: block; padding: 0; }
-  #map { position: absolute; inset: 0; width: 100vw; height: 100vh; background: transparent; }
+  #app-shell { width: 31.6cm !important; height: 25.7cm !important; overflow: visible; display: block; position: static; }
+  #screens { position: absolute; left: 0; top: 0; width: 31.6cm !important; height: 25.7cm !important; overflow: visible; display: block; background: transparent; }
+  #screen-map { position: absolute; inset: 0; display: block; padding: 0; width: 100%; height: 100%; }
+  #map { position: absolute; inset: 0; width: 31.6cm !important; height: 25.7cm !important; background: transparent; }
   .map-label { color: #000 !important; text-shadow: 1px 1px 3px #fff, -1px -1px 3px #fff, 1px -1px 3px #fff, -1px 1px 3px #fff !important; }
 }
 
@@ -556,6 +557,17 @@ input, select { font-family: inherit; }
 </style>
 </head>
 <body>
+
+<!-- HLB INIT OVERLAY -->
+<div id="hlb-init-overlay" class="ovl" style="align-items:center;">
+  <div class="sheet" style="border-radius: var(--r-lg); max-width: 340px; padding: 24px;">
+    <h3 style="margin-bottom:10px;"><i class="ti ti-map-pin" style="color:var(--signal)"></i> Welcome to Census Mapper</h3>
+    <p style="font-size:12.5px; color:var(--ink2); margin-bottom:18px; line-height:1.5;">Please enter the HLB number(s) allotted to you. If you have multiple, separate them by commas (e.g. 101, 102, 103).</p>
+    <input type="text" id="init-hlb-input" class="fi" placeholder="e.g. 155" style="margin-bottom:20px;"/>
+    <button class="bk-btn pr" onclick="saveInitHLB()">Start Mapping</button>
+  </div>
+</div>
+
 <div id="app-shell">
 
   <div id="header">
@@ -820,7 +832,7 @@ input, select { font-family: inherit; }
 <!-- OVERLAYS & MODALS -->
 <input type="file" id="fileup" accept="image/*" style="display:none" onchange="loadImageOverlay(event)"/>
 
-<div id="moverlay" class="ovl">
+<div id="moverlay" class="ovl" style="align-items: flex-end;">
   <div id="modal" class="sheet">
     <div class="mdragger"></div>
     <h3 id="modal-title"><i class="ti ti-home-plus" style="color:var(--signal)"></i>Feature Details</h3>
@@ -940,7 +952,7 @@ input, select { font-family: inherit; }
   </div>
 </div>
 
-<div id="import-overlay" class="ovl">
+<div id="import-overlay" class="ovl" style="align-items: flex-end;">
   <div id="import-modal" class="sheet">
     <div class="mdragger"></div>
     <h3><i class="ti ti-upload" style="color:var(--signal)"></i>Restore Backup</h3>
@@ -962,6 +974,18 @@ function newId() { return Date.now() * 1000 + (++_idSeq % 1000); }
 
 let hlbList = [];
 try { hlbList = JSON.parse(localStorage.getItem('census-hlbs') || '[]'); if (!Array.isArray(hlbList)) hlbList = []; } catch(e) { hlbList = []; }
+
+// HLB Init logic
+window.saveInitHLB = function() {
+  const val = document.getElementById('init-hlb-input').value;
+  if (!val.trim()) { alert('Please enter at least one HLB number.'); return; }
+  const parts = val.split(',').map(s => s.trim()).filter(Boolean);
+  parts.forEach(p => { if (!hlbList.includes(p)) hlbList.push(p); });
+  saveHLBs();
+  updateHLBDropdown('');
+  document.getElementById('hlb-init-overlay').classList.remove('open');
+  showStatus('HLB(s) saved!', 'ok');
+};
 
 function saveHLBs() { localStorage.setItem('census-hlbs', JSON.stringify(hlbList)); }
 function addHLB(value) {
@@ -1074,7 +1098,6 @@ currentBase.addTo(map);
 let layersOpen = false;
 let utilsOpen = false;
 
-// Explicit global assignment for UI buttons
 window.toggleLayers = function() {
   layersOpen = !layersOpen;
   document.getElementById('layer-stack').classList.toggle('open', layersOpen);
@@ -1104,7 +1127,6 @@ window.switchMapType = function(type) {
 
 window.printMap = function() { window.print(); };
 
-// Two-finger rotation logic
 (function() {
   const container = map.getContainer();
   let initialAngle = 0, initialBearing = 0, initialDistance = 0, isRotating = false;
@@ -1171,7 +1193,7 @@ let lastGoodAcc = null;
 
 let bestFixCollecting = false, bestFixSamples = [], bestFixResolve = null, bestFixTimer = null;
 let quickMarkOn = (localStorage.getItem('census-quickmark') === '1');
-let qmLast = { type: 'pucca-house', subtype: 'res', censusCount: 1 };
+let qmLast = { type: 'pucca-house', subtype: 'res', censusCount: 1, hlb: '' };
 
 let walkTrail = [], walkTracking = false, walkDistance = 0, walkLayer = null, walkLastSaveAt = 0;
 try {
@@ -1518,17 +1540,23 @@ window.toggleQuickMark = function() {
   document.getElementById('qm-toggle').classList.toggle('on', quickMarkOn);
   showStatus(quickMarkOn ? 'Quick Mark on — taps place buildings instantly' : 'Quick Mark off', 'ok', 1800);
 };
+
 function placeQuickMark(coords) {
+  let assignHlb = '';
+  if (hlbList.length === 1) assignHlb = hlbList[0];
+  else if (qmLast.hlb) assignHlb = qmLast.hlb;
+
   const feature = {
     id: newId(), geometryType: 'point', coords,
     type: qmLast.type, subtype: qmLast.subtype, censusCount: qmLast.censusCount,
-    name: '', note: '', hlb: ''
+    name: '', note: '', hlb: assignHlb
   };
   features.push(feature);
   saveData(); renderAll();
   haptic(15);
   showStatus('Marked: ' + typeLabel(qmLast.type) + ' — tap it anytime to add details', 'ok', 1600);
 }
+
 window.markHereGPS = function() {
   if (!gpsOn || !youMk) { showStatus('Turn on GPS first', 'warn'); return; }
   collectBestFix(function(best) {
@@ -1768,6 +1796,7 @@ window.onFeatureTypeChange = function() {
   document.getElementById('fg-usage').style.display = house ? 'block' : 'none';
   document.getElementById('fg-census').style.display = house ? 'block' : 'none';
 };
+
 function openModal(type, coords, existingFeature = null) {
   pendingData = { type, coords };
   editingId = existingFeature ? existingFeature.id : null;
@@ -1779,16 +1808,21 @@ function openModal(type, coords, existingFeature = null) {
   document.getElementById('form-boundary').style.display = type === 'boundary' ? 'block' : 'none';
 
   if (type === 'point') {
-    updateHLBDropdown(existingFeature ? existingFeature.hlb : '');
+    let defaultHlb = '';
+    if (existingFeature && existingFeature.hlb) {
+      defaultHlb = existingFeature.hlb;
+    } else if (hlbList.length === 1) {
+      defaultHlb = hlbList[0];
+    } else if (qmLast.hlb) {
+      defaultHlb = qmLast.hlb;
+    }
+    updateHLBDropdown(defaultHlb);
+    
     document.getElementById('pt-type').value = existingFeature ? existingFeature.type : 'pucca-house';
     document.getElementById('pt-subtype').value = existingFeature ? (existingFeature.subtype || 'res') : 'res';
     document.getElementById('pt-name').value = existingFeature ? (existingFeature.name || '') : '';
     document.getElementById('pt-census').value = existingFeature ? (existingFeature.censusCount || 1) : 1;
     document.getElementById('pt-note').value = existingFeature ? (existingFeature.note || '') : '';
-    if (existingFeature && existingFeature.hlb) {
-      const sel = document.getElementById('pt-hlb');
-      sel.value = existingFeature.hlb;
-    }
     window.onFeatureTypeChange();
   }
   if (type === 'line') {
@@ -1815,10 +1849,12 @@ function openModal(type, coords, existingFeature = null) {
   document.getElementById('moverlay').classList.add('open');
   setTimeout(() => document.querySelector('#modal input[type=text]')?.focus(), 200);
 }
+
 window.closeModal = function() {
   document.getElementById('moverlay').classList.remove('open');
   pendingData = null; editingId = null;
 };
+
 window.saveFeature = function() {
   if (!pendingData) return;
   const { type, coords } = pendingData;
@@ -1846,7 +1882,8 @@ window.saveFeature = function() {
     feature.note = document.getElementById('pt-note').value.trim();
     const hlbVal = document.getElementById('pt-hlb').value.trim();
     if (hlbVal) { addHLB(hlbVal); feature.hlb = hlbVal; } else { feature.hlb = ''; }
-    qmLast = { type: feature.type, subtype: feature.subtype, censusCount: feature.censusCount || 1 };
+    
+    qmLast = { type: feature.type, subtype: feature.subtype, censusCount: feature.censusCount || 1, hlb: feature.hlb };
 
   } else if (type === 'line') {
     feature.geometryType = 'line';
@@ -1979,8 +2016,10 @@ function renderAll() {
       const isNR = f.subtype === 'nr';
       const boxNumber = f.name ? f.name : ((f.censusCount && f.censusCount > 1) ? f.censusCount : '');
       const textDiv = boxNumber ? `<div class="census-box-text">${esc(boxNumber)}</div>` : '';
+      
+      // Increased Box Size for fully reading numbers without ellipsis
       html = `<div class="census-wrap"><div class="census-box ${isNR ? 'nr' : 'res'}">${textDiv}</div></div>`;
-      iconSize = [36, 36];
+      iconSize = [48, 28]; // Matches updated CSS size for better legibility
     } else {
       const m = INSTITUTION_META[f.type] || { letter: '?', color: '#6b7280' };
       html = `<div class="census-wrap"><div class="sh-inst" style="background:${m.color};width:24px;height:24px;border-radius:50%;font-size:10px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;">${m.letter}</div></div>`;
@@ -2566,18 +2605,21 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// Initialization
 renderAll();
 document.getElementById('qm-toggle').classList.toggle('on', quickMarkOn);
 if (walkTrail.length > 1) { redrawWalkTrail(); updateWalkBadge(); }
 updateBackupReminderUI();
 
+if (!hlbList || hlbList.length === 0) {
+  document.getElementById('hlb-init-overlay').classList.add('open');
+}
+
 if (_deferredStatus) {
   showStatus(_deferredStatus.msg, _deferredStatus.type, _deferredStatus.dur);
   _deferredStatus = null;
 } else if (!features.length) {
-  showStatus('Open the Building tool and tap the map to start marking Stage 1', 'ok', 5000);
-} else {
-  showStatus('Stage 1 on the Map tab. Stage 2 in its own tab. Back up daily from Backup.', 'ok', 5000);
+  showStatus('Open the Building tool and tap the map to start marking', 'ok', 5000);
 }
 
 if (features.length > 0) {
