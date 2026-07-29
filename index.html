@@ -498,11 +498,11 @@ input, select { font-family: inherit; }
 .census-wrap { display: flex; align-items: center; justify-content: center; position: relative; }
 
 .census-box {
-    width: 32px; height: 32px;
+    width: 28px; height: 28px;
     border: 2px solid #000;
     display: flex; align-items: center; justify-content: center;
     font-family: 'Courier New', Courier, monospace; 
-    font-size: 9.5px; /* Reduced Font Size */
+    font-size: 10px; 
     font-weight: 800;
     color: #000; border-radius: 2px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
@@ -512,10 +512,10 @@ input, select { font-family: inherit; }
 .census-box-text {
     background: rgba(255,255,255,0.9);
     padding: 0 1px; border-radius: 2px;
-    white-space: nowrap; line-height: 1.1; letter-spacing: -0.5px;
+    white-space: nowrap; line-height: 1; letter-spacing: -0.5px;
 }
 
-.sh-inst { width: 24px; height: 24px; border-radius: 50%; border: 2.5px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
+.sh-inst { width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff; }
 .stage2-badge { position: absolute; top: -4px; right: -4px; width: 10px; height: 10px; background: var(--ok); border: 1px solid #fff; border-radius: 50%; }
 .gps-pulse { width: 14px; height: 14px; background: var(--signal); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 4px rgba(91,124,250,.3), 0 0 12px rgba(91,124,250,.6); animation: gpspulse 2s infinite; }
 .sh-drag-ring { position: absolute; inset: -6px; border-radius: 50%; border: 2px dashed var(--warn); animation: rotatering 2s linear infinite; }
@@ -526,25 +526,6 @@ input, select { font-family: inherit; }
 @keyframes gpspulse { 0%, 100% { box-shadow: 0 0 0 4px rgba(91,124,250,.3); } 50% { box-shadow: 0 0 0 8px rgba(91,124,250,.1); } }
 @keyframes rotatering { to { transform: rotate(360deg); } }
 @keyframes flashring { 0% { box-shadow: 0 0 0 0 rgba(245,166,35,.7); } 60% { box-shadow: 0 0 0 14px rgba(245,166,35,0); } 100% { box-shadow: 0 0 0 0 rgba(245,166,35,0); } }
-
-/* ── EXACT PRINT LAYOUT ── */
-@media print {
-  /* Set Exact dimensions. width: 31.6cm, height: 25.7cm */
-  @page { size: 31.6cm 25.7cm; margin: 0; }
-  body, html { width: 31.6cm !important; height: 25.7cm !important; background: white !important; margin: 0; padding: 0; }
-  
-  #header, #tabbar, #status, #drag-hint, #ctx, #undo-bar, .ovl, #geocontrols, #mode-pill,
-  #map-left-cluster, #map-util-row, #fab-cluster, #bnd-edit-bar, #reminder-banner, .leaflet-control-container {
-    display: none !important;
-  }
-  
-  #app-shell { width: 31.6cm !important; height: 25.7cm !important; overflow: visible; display: block; position: static; }
-  #screens { position: absolute; left: 0; top: 0; width: 31.6cm !important; height: 25.7cm !important; overflow: visible; display: block; background: transparent; }
-  #screen-map { position: absolute; inset: 0; display: block; padding: 0; width: 100%; height: 100%; }
-  #map { position: absolute; inset: 0; width: 31.6cm !important; height: 25.7cm !important; background: transparent; }
-  
-  .map-label { color: #000 !important; text-shadow: 1px 1px 3px #fff, -1px -1px 3px #fff, 1px -1px 3px #fff, -1px 1px 3px #fff !important; }
-}
 
 /* ── RESPONSIVE ── */
 @media(max-width:360px) {
@@ -571,6 +552,38 @@ input, select { font-family: inherit; }
     <p style="font-size:12.5px; color:var(--ink2); margin-bottom:18px; line-height:1.5;">Please enter the HLB number(s) allotted to you. If you have multiple, separate them by commas (e.g. 101, 102, 103).</p>
     <input type="text" id="init-hlb-input" class="fi" placeholder="e.g. 155" style="margin-bottom:20px;"/>
     <button class="bk-btn pr" onclick="saveInitHLB()">Start Mapping</button>
+  </div>
+</div>
+
+<!-- PDF EXPORT OVERLAY -->
+<div id="pdf-overlay" class="ovl" style="align-items:center; z-index:100000;">
+  <div class="sheet" style="border-radius: var(--r-lg); max-width: 360px; padding: 24px;">
+    <h3 style="margin-bottom:15px;"><i class="ti ti-file-pdf" style="color:var(--signal)"></i> Export as PDF</h3>
+    <div class="fg">
+      <label class="fl">Orientation</label>
+      <select id="pdf-orient" class="fi">
+        <option value="landscape" selected>Landscape</option>
+        <option value="portrait">Portrait</option>
+      </select>
+    </div>
+    <div style="display:flex; gap:10px;">
+        <div class="fg" style="flex:1;">
+          <label class="fl">Width (cm)</label>
+          <input type="number" id="pdf-width" class="fi" value="31.6" step="0.1"/>
+        </div>
+        <div class="fg" style="flex:1;">
+          <label class="fl">Height (cm)</label>
+          <input type="number" id="pdf-height" class="fi" value="25.7" step="0.1"/>
+        </div>
+    </div>
+    <div class="fg" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="pdf-overlap" style="width:18px;height:18px;" checked/>
+        <label for="pdf-overlap" style="font-size:12px;color:var(--ink2);">Auto-adjust to avoid overlapping numbers</label>
+    </div>
+    <div class="mbtns">
+      <button class="mbtn" onclick="closePdfModal()">Cancel</button>
+      <button class="mbtn pr" onclick="generatePDF()">Generate</button>
+    </div>
   </div>
 </div>
 
@@ -691,7 +704,7 @@ input, select { font-family: inherit; }
 
       <!-- PRINT & UTIL BUTTONS -->
       <div id="map-util-row">
-        <button class="util-btn primary" onclick="event.stopPropagation(); printMap()" title="Print Layout Map"><i class="ti ti-printer"></i></button>
+        <button class="util-btn primary" onclick="event.stopPropagation(); openPdfModal()" title="Print Layout Map"><i class="ti ti-printer"></i></button>
 
         <div id="map-util-cluster" class="mini-fab right-align">
           <button class="util-btn" id="util-fab-main" onclick="event.stopPropagation(); toggleUtils()"><i class="ti ti-tools"></i></button>
@@ -1131,7 +1144,143 @@ window.switchMapType = function(type) {
   document.getElementById('layer-fab-main').innerHTML = `<i class="ti ${icons[type]}"></i>`;
 };
 
-window.printMap = function() { window.print(); };
+// EXPORT TO PDF LOGIC
+window.openPdfModal = function() {
+    document.getElementById('pdf-overlay').classList.add('open');
+};
+
+window.closePdfModal = function() {
+    document.getElementById('pdf-overlay').classList.remove('open');
+};
+
+window.generatePDF = function() {
+    let w = parseFloat(document.getElementById('pdf-width').value) || 31.6;
+    let h = parseFloat(document.getElementById('pdf-height').value) || 25.7;
+    let orient = document.getElementById('pdf-orient').value;
+    let avoidOverlap = document.getElementById('pdf-overlap').checked;
+
+    if (orient === 'portrait') {
+        if (w > h) { let t=w; w=h; h=t; }
+    } else {
+        if (h > w) { let t=w; w=h; h=t; }
+    }
+
+    closePdfModal();
+    showStatus('Preparing layout...', 'ok', 0);
+
+    let styleStr = `
+        @media print {
+            @page { size: ${w}cm ${h}cm; margin: 0; }
+            body, html { width: ${w}cm !important; height: ${h}cm !important; background: white !important; margin: 0; padding: 0; }
+            #app-shell, #screens, #screen-map, #map {
+                width: ${w}cm !important; height: ${h}cm !important;
+                position: absolute !important; inset: 0 !important; display: block !important;
+                background: transparent !important; overflow: visible !important;
+            }
+            #header, #tabbar, #status, #drag-hint, #ctx, #undo-bar, .ovl, #geocontrols, #mode-pill,
+            #map-left-cluster, #map-util-row, #fab-cluster, #bnd-edit-bar, #reminder-banner, .leaflet-control-container {
+                display: none !important;
+            }
+            .map-label { color: #000 !important; text-shadow: 1px 1px 3px #fff, -1px -1px 3px #fff, 1px -1px 3px #fff, -1px 1px 3px #fff !important; }
+        }
+    `;
+    let styleTag = document.getElementById('dynamic-print-style');
+    if(!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = 'dynamic-print-style';
+        document.head.appendChild(styleTag);
+    }
+    styleTag.innerHTML = styleStr;
+
+    const mapContainer = document.getElementById('map');
+    const origWidth = mapContainer.style.width;
+    const origHeight = mapContainer.style.height;
+    const origZ = mapContainer.style.zIndex;
+    const origPos = mapContainer.style.position;
+
+    mapContainer.style.width = `${w}cm`;
+    mapContainer.style.height = `${h}cm`;
+    mapContainer.style.position = 'fixed';
+    mapContainer.style.zIndex = '900000';
+    mapContainer.style.top = '0';
+    mapContainer.style.left = '0';
+
+    map.invalidateSize();
+    fitToArea();
+
+    setTimeout(() => {
+        let restoreOverlaps = null;
+        if (avoidOverlap) {
+            restoreOverlaps = resolveOverlaps();
+        }
+
+        showStatus('Generating PDF...', 'ok', 0);
+        
+        setTimeout(() => {
+            window.print();
+            
+            if (restoreOverlaps) restoreOverlaps();
+            mapContainer.style.width = origWidth;
+            mapContainer.style.height = origHeight;
+            mapContainer.style.position = origPos;
+            mapContainer.style.zIndex = origZ;
+            map.invalidateSize();
+            fitToArea();
+            clearStatus();
+        }, 1000); 
+    }, 500); 
+};
+
+function resolveOverlaps() {
+    let pts = features.filter(f => f.geometryType === 'point');
+    if(!pts.length) return null;
+    let nodes = pts.map(f => {
+        let mk = allMarkerRefs[f.id];
+        let p = map.latLngToLayerPoint(mk.getLatLng());
+        return { id: f.id, mk: mk, orig: mk.getLatLng(), x: p.x, y: p.y };
+    });
+
+    const W = 36, H = 36; 
+    let collided = true;
+    let iterations = 0;
+    while(collided && iterations < 150) {
+        collided = false;
+        for(let i=0; i<nodes.length; i++) {
+            for(let j=i+1; j<nodes.length; j++) {
+                let dx = nodes[i].x - nodes[j].x;
+                let dy = nodes[i].y - nodes[j].y;
+                let absDx = Math.abs(dx);
+                let absDy = Math.abs(dy);
+                
+                if(absDx < W && absDy < H) {
+                    collided = true;
+                    let overlapX = W - absDx;
+                    let overlapY = H - absDy;
+                    
+                    if(overlapX < overlapY) {
+                        let shift = (overlapX / 2) + 0.5;
+                        if(dx > 0) { nodes[i].x += shift; nodes[j].x -= shift; }
+                        else       { nodes[i].x -= shift; nodes[j].x += shift; }
+                    } else {
+                        let shift = (overlapY / 2) + 0.5;
+                        if(dy > 0) { nodes[i].y += shift; nodes[j].y -= shift; }
+                        else       { nodes[i].y -= shift; nodes[j].y += shift; }
+                    }
+                }
+            }
+        }
+        iterations++;
+    }
+
+    nodes.forEach(n => {
+        n.mk.setLatLng(map.layerPointToLatLng(L.point(n.x, n.y)));
+    });
+
+    return () => {
+        nodes.forEach(n => n.mk.setLatLng(n.orig));
+    };
+}
+
 
 (function() {
   const container = map.getContainer();
@@ -2023,13 +2172,12 @@ function renderAll() {
       const boxNumber = f.name ? f.name : ((f.censusCount && f.censusCount > 1) ? f.censusCount : '');
       const textDiv = boxNumber ? `<div class="census-box-text">${esc(boxNumber)}</div>` : '';
       
-      // Restored Box Size with smaller font for reading completely
       html = `<div class="census-wrap"><div class="census-box ${isNR ? 'nr' : 'res'}">${textDiv}</div></div>`;
-      iconSize = [34, 34];
+      iconSize = [28, 28]; 
     } else {
       const m = INSTITUTION_META[f.type] || { letter: '?', color: '#6b7280' };
-      html = `<div class="census-wrap"><div class="sh-inst" style="background:${m.color};width:24px;height:24px;border-radius:50%;font-size:10px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;">${m.letter}</div></div>`;
-      iconSize = [28, 28];
+      html = `<div class="census-wrap"><div class="sh-inst" style="background:${m.color};width:20px;height:20px;border-radius:50%;font-size:9px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;">${m.letter}</div></div>`;
+      iconSize = [24, 24];
     }
 
     if (f.stage2) html += '<div class="stage2-badge"></div>';
@@ -2601,7 +2749,7 @@ document.addEventListener('keydown', e => {
   if (k === 'a') setMode('arrow');
   if (k === 'z') window.undoLast();
   if (k === 'escape') {
-    closeCtx(); window.closeModal();
+    closeCtx(); window.closeModal(); window.closePdfModal();
     if (draggingMk) endDragMode(false);
     if (editBndFid !== null) cancelBoundaryEdit();
     clearArrowSelection();
