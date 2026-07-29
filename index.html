@@ -435,11 +435,13 @@ input, select { font-family: inherit; }
 .ovl.open { display: flex; }
 #moverlay { align-items: flex-end; }
 #import-overlay { z-index: 100000; align-items: flex-end; }
+#pdf-overlay { z-index: 100000; }
 .sheet {
-  background: var(--s2); border: 1px solid var(--line2); border-radius: var(--r-lg) var(--r-lg) 0 0;
+  background: var(--s2); border: 1px solid var(--line2); border-radius: var(--r-lg);
   padding: 18px 16px 22px; width: 100%; max-width: 460px; max-height: 88vh; overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
+#moverlay .sheet, #import-overlay .sheet { border-radius: var(--r-lg) var(--r-lg) 0 0; }
 .mdragger { width: 38px; height: 4px; background: var(--line2); border-radius: 2px; margin: 0 auto 14px; }
 .sheet h3 { font-size: 15px; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center; gap: 7px; }
 .fg { margin-bottom: 14px; }
@@ -556,7 +558,7 @@ input, select { font-family: inherit; }
 </div>
 
 <!-- PDF EXPORT OVERLAY -->
-<div id="pdf-overlay" class="ovl" style="align-items:center; z-index:100000;">
+<div id="pdf-overlay" class="ovl" style="align-items:center;">
   <div class="sheet" style="border-radius: var(--r-lg); max-width: 360px; padding: 24px;">
     <h3 style="margin-bottom:15px;"><i class="ti ti-file-pdf" style="color:var(--signal)"></i> Export as PDF</h3>
     <div class="fg">
@@ -1144,7 +1146,9 @@ window.switchMapType = function(type) {
   document.getElementById('layer-fab-main').innerHTML = `<i class="ti ${icons[type]}"></i>`;
 };
 
-// EXPORT TO PDF LOGIC
+// =========================================================================
+// PDF EXPORT LOGIC WITH OVERLAP RESOLUTION
+// =========================================================================
 window.openPdfModal = function() {
     document.getElementById('pdf-overlay').classList.add('open');
 };
@@ -1171,11 +1175,11 @@ window.generatePDF = function() {
     let styleStr = `
         @media print {
             @page { size: ${w}cm ${h}cm; margin: 0; }
-            body, html { width: ${w}cm !important; height: ${h}cm !important; background: white !important; margin: 0; padding: 0; }
+            body, html { width: ${w}cm !important; height: ${h}cm !important; background: white !important; margin: 0; padding: 0; overflow: hidden !important; }
             #app-shell, #screens, #screen-map, #map {
                 width: ${w}cm !important; height: ${h}cm !important;
-                position: absolute !important; inset: 0 !important; display: block !important;
-                background: transparent !important; overflow: visible !important;
+                position: absolute !important; top: 0 !important; left: 0 !important; inset: 0 !important; display: block !important;
+                background: transparent !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important;
             }
             #header, #tabbar, #status, #drag-hint, #ctx, #undo-bar, .ovl, #geocontrols, #mode-pill,
             #map-left-cluster, #map-util-row, #fab-cluster, #bnd-edit-bar, #reminder-banner, .leaflet-control-container {
@@ -1198,6 +1202,7 @@ window.generatePDF = function() {
     const origZ = mapContainer.style.zIndex;
     const origPos = mapContainer.style.position;
 
+    // Force map to physical dimensions
     mapContainer.style.width = `${w}cm`;
     mapContainer.style.height = `${h}cm`;
     mapContainer.style.position = 'fixed';
@@ -1205,8 +1210,20 @@ window.generatePDF = function() {
     mapContainer.style.top = '0';
     mapContainer.style.left = '0';
 
-    map.invalidateSize();
-    fitToArea();
+    // Force reflow
+    void mapContainer.offsetWidth; 
+
+    map.invalidateSize(true);
+
+    let bounds = L.latLngBounds([]);
+    features.forEach(f => {
+        if(f.geometryType === 'point') bounds.extend(f.coords);
+        else if(Array.isArray(f.coords)) f.coords.forEach(c => {if(c.length===2) bounds.extend(c)});
+    });
+
+    if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [20, 20], animate: false });
+    }
 
     setTimeout(() => {
         let restoreOverlaps = null;
@@ -1224,11 +1241,13 @@ window.generatePDF = function() {
             mapContainer.style.height = origHeight;
             mapContainer.style.position = origPos;
             mapContainer.style.zIndex = origZ;
-            map.invalidateSize();
-            fitToArea();
+            map.invalidateSize(true);
+            if (bounds.isValid()) {
+                map.fitBounds(bounds, { padding: [24, 24], animate: false });
+            }
             clearStatus();
-        }, 1000); 
-    }, 500); 
+        }, 800); 
+    }, 300); 
 };
 
 function resolveOverlaps() {
@@ -1240,7 +1259,7 @@ function resolveOverlaps() {
         return { id: f.id, mk: mk, orig: mk.getLatLng(), x: p.x, y: p.y };
     });
 
-    const W = 36, H = 36; 
+    const W = 32, H = 32; // Box pixel dimensions plus tiny margin
     let collided = true;
     let iterations = 0;
     while(collided && iterations < 150) {
@@ -1280,7 +1299,7 @@ function resolveOverlaps() {
         nodes.forEach(n => n.mk.setLatLng(n.orig));
     };
 }
-
+// =========================================================================
 
 (function() {
   const container = map.getContainer();
