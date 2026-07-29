@@ -175,7 +175,7 @@ input, select { font-family: inherit; }
 #searchbox input::placeholder { color: var(--ink3); }
 #searchbox button { background: transparent; border: none; color: var(--ink3); padding: 8px; cursor: pointer; display: flex; align-items: center; font-size: 18px; }
 #searchbox button:hover { color: var(--signal); }
-#suggestions { list-style: none; max-height: 200px; overflow-y: auto; }
+#suggestions { list-style: none; max-height: 200px; overflow: y: auto; }
 .sug-item { padding: 8px 11px; font-size: 10px; color: var(--ink2); cursor: pointer; border-top: 1px solid var(--line); }
 .sug-item:hover, .sug-item.active { background: var(--s3); color: var(--ink); }
 .sug-name { font-weight: 600; color: var(--ink); font-size: 11px; }
@@ -580,7 +580,7 @@ input, select { font-family: inherit; }
     </div>
     <div class="fg" style="display:flex; align-items:center; gap:8px;">
         <input type="checkbox" id="pdf-overlap" style="width:18px;height:18px;" checked/>
-        <label for="pdf-overlap" style="font-size:12px;color:var(--ink2);">Auto-adjust to avoid overlapping numbers</label>
+        <label for="pdf-overlap" style="font-size:12px;color:var(--ink2); line-height: 1.3;">Auto-shrink boxes to prevent overlap (Keeps exact GPS location)</label>
     </div>
     <div class="mbtns">
       <button class="mbtn" onclick="closePdfModal()">Cancel</button>
@@ -1147,7 +1147,7 @@ window.switchMapType = function(type) {
 };
 
 // =========================================================================
-// PDF EXPORT LOGIC WITH OVERLAP RESOLUTION
+// PDF EXPORT LOGIC WITH AUTO-SHRINK FOR OVERLAP RESOLUTION
 // =========================================================================
 window.openPdfModal = function() {
     document.getElementById('pdf-overlay').classList.add('open');
@@ -1161,7 +1161,7 @@ window.generatePDF = function() {
     let w = parseFloat(document.getElementById('pdf-width').value) || 31.6;
     let h = parseFloat(document.getElementById('pdf-height').value) || 25.7;
     let orient = document.getElementById('pdf-orient').value;
-    let avoidOverlap = document.getElementById('pdf-overlap').checked;
+    let autoShrink = document.getElementById('pdf-overlap').checked;
 
     if (orient === 'portrait') {
         if (w > h) { let t=w; w=h; h=t; }
@@ -1226,17 +1226,55 @@ window.generatePDF = function() {
     }
 
     setTimeout(() => {
-        let restoreOverlaps = null;
-        if (avoidOverlap) {
-            restoreOverlaps = resolveOverlaps();
+        let pts = features.filter(f => f.geometryType === 'point');
+        let finalSize = 28; // Default base size for boxes
+
+        if (autoShrink && pts.length > 1) {
+            let minDist = Infinity;
+            let nodes = pts.map(f => map.latLngToLayerPoint(allMarkerRefs[f.id].getLatLng()));
+            for(let i=0; i<nodes.length; i++) {
+                for(let j=i+1; j<nodes.length; j++) {
+                    let dx = nodes[i].x - nodes[j].x;
+                    let dy = nodes[i].y - nodes[j].y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    // Ignore points that are perfectly stacked (distance < 0.1px)
+                    if(dist > 0.1 && dist < minDist) {
+                        minDist = dist;
+                    }
+                }
+            }
+            
+            // If the closest points are closer than the box size, shrink the boxes
+            if (minDist !== Infinity && minDist < 30) {
+                finalSize = Math.max(8, minDist * 0.9); // Shrink to fit, but don't go smaller than 8px
+            }
         }
+
+        // Apply calculated size strictly for printing
+        let scaleCss = `
+            @media print {
+                .census-box { 
+                    width: ${finalSize}px !important; 
+                    height: ${finalSize}px !important; 
+                    font-size: ${Math.max(4, finalSize * 0.35)}px !important; 
+                    border-width: ${Math.max(0.5, finalSize * 0.05)}px !important; 
+                }
+                .sh-inst { 
+                    width: ${finalSize * 0.8}px !important; 
+                    height: ${finalSize * 0.8}px !important; 
+                    font-size: ${Math.max(4, finalSize * 0.3)}px !important; 
+                    border-width: ${Math.max(0.5, finalSize * 0.05)}px !important; 
+                }
+            }
+        `;
+        styleTag.innerHTML += scaleCss;
 
         showStatus('Generating PDF...', 'ok', 0);
         
         setTimeout(() => {
             window.print();
             
-            if (restoreOverlaps) restoreOverlaps();
+            // Restore map to normal UI state
             mapContainer.style.width = origWidth;
             mapContainer.style.height = origHeight;
             mapContainer.style.position = origPos;
@@ -1247,58 +1285,8 @@ window.generatePDF = function() {
             }
             clearStatus();
         }, 800); 
-    }, 300); 
+    }, 400); 
 };
-
-function resolveOverlaps() {
-    let pts = features.filter(f => f.geometryType === 'point');
-    if(!pts.length) return null;
-    let nodes = pts.map(f => {
-        let mk = allMarkerRefs[f.id];
-        let p = map.latLngToLayerPoint(mk.getLatLng());
-        return { id: f.id, mk: mk, orig: mk.getLatLng(), x: p.x, y: p.y };
-    });
-
-    const W = 32, H = 32; // Box pixel dimensions plus tiny margin
-    let collided = true;
-    let iterations = 0;
-    while(collided && iterations < 150) {
-        collided = false;
-        for(let i=0; i<nodes.length; i++) {
-            for(let j=i+1; j<nodes.length; j++) {
-                let dx = nodes[i].x - nodes[j].x;
-                let dy = nodes[i].y - nodes[j].y;
-                let absDx = Math.abs(dx);
-                let absDy = Math.abs(dy);
-                
-                if(absDx < W && absDy < H) {
-                    collided = true;
-                    let overlapX = W - absDx;
-                    let overlapY = H - absDy;
-                    
-                    if(overlapX < overlapY) {
-                        let shift = (overlapX / 2) + 0.5;
-                        if(dx > 0) { nodes[i].x += shift; nodes[j].x -= shift; }
-                        else       { nodes[i].x -= shift; nodes[j].x += shift; }
-                    } else {
-                        let shift = (overlapY / 2) + 0.5;
-                        if(dy > 0) { nodes[i].y += shift; nodes[j].y -= shift; }
-                        else       { nodes[i].y -= shift; nodes[j].y += shift; }
-                    }
-                }
-            }
-        }
-        iterations++;
-    }
-
-    nodes.forEach(n => {
-        n.mk.setLatLng(map.layerPointToLatLng(L.point(n.x, n.y)));
-    });
-
-    return () => {
-        nodes.forEach(n => n.mk.setLatLng(n.orig));
-    };
-}
 // =========================================================================
 
 (function() {
@@ -2183,7 +2171,7 @@ function renderAll() {
   });
 
   features.filter(f => f.geometryType === 'point').forEach(f => {
-    let html = '', iconSize = [32, 32];
+    let html = '', iconSize = [28, 28];
     const house = isHouseType(f.type);
     
     if (house) {
