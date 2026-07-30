@@ -500,11 +500,11 @@ input, select { font-family: inherit; }
 .census-wrap { display: flex; align-items: center; justify-content: center; position: relative; }
 
 .census-box {
-    width: 26px; height: 26px;
-    border: 2px solid #000;
+    width: 28px; height: 28px;
+    border: 1.5px solid #000;
     display: flex; align-items: center; justify-content: center;
     font-family: 'Courier New', Courier, monospace; 
-    font-size: 11px; 
+    font-size: 10px; 
     font-weight: 800;
     color: #000; border-radius: 2px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
@@ -518,7 +518,7 @@ input, select { font-family: inherit; }
     white-space: nowrap; line-height: 1; letter-spacing: -0.5px;
 }
 
-.sh-inst { width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff; }
+.sh-inst { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff; }
 .stage2-badge { position: absolute; top: -4px; right: -4px; width: 10px; height: 10px; background: var(--ok); border: 1px solid #fff; border-radius: 50%; z-index: 15; }
 .gps-pulse { width: 14px; height: 14px; background: var(--signal); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 4px rgba(91,124,250,.3), 0 0 12px rgba(91,124,250,.6); animation: gpspulse 2s infinite; }
 .sh-drag-ring { position: absolute; inset: -6px; border-radius: 50%; border: 2px dashed var(--warn); animation: rotatering 2s linear infinite; }
@@ -529,24 +529,6 @@ input, select { font-family: inherit; }
 @keyframes gpspulse { 0%, 100% { box-shadow: 0 0 0 4px rgba(91,124,250,.3); } 50% { box-shadow: 0 0 0 8px rgba(91,124,250,.1); } }
 @keyframes rotatering { to { transform: rotate(360deg); } }
 @keyframes flashring { 0% { box-shadow: 0 0 0 0 rgba(245,166,35,.7); } 60% { box-shadow: 0 0 0 14px rgba(245,166,35,0); } 100% { box-shadow: 0 0 0 0 rgba(245,166,35,0); } }
-
-/* ── EXACT PRINT LAYOUT ── */
-@media print {
-  @page { size: 31.6cm 25.7cm; margin: 0; }
-  body, html { width: 31.6cm !important; height: 25.7cm !important; background: white !important; margin: 0; padding: 0; }
-  
-  #header, #tabbar, #status, #drag-hint, #ctx, #undo-bar, .ovl, #geocontrols, #mode-pill,
-  #map-left-cluster, #map-util-row, #fab-cluster, #bnd-edit-bar, #reminder-banner, .leaflet-control-container {
-    display: none !important;
-  }
-  
-  #app-shell { width: 31.6cm !important; height: 25.7cm !important; overflow: visible; display: block; position: static; }
-  #screens { position: absolute; left: 0; top: 0; width: 31.6cm !important; height: 25.7cm !important; overflow: visible; display: block; background: transparent; }
-  #screen-map { position: absolute; inset: 0; display: block; padding: 0; width: 100%; height: 100%; }
-  #map { position: absolute; inset: 0; width: 31.6cm !important; height: 25.7cm !important; background: transparent; }
-  
-  .map-label { color: #000 !important; text-shadow: 1px 1px 3px #fff, -1px -1px 3px #fff, 1px -1px 3px #fff, -1px 1px 3px #fff !important; }
-}
 
 /* ── RESPONSIVE ── */
 @media(max-width:360px) {
@@ -580,6 +562,14 @@ input, select { font-family: inherit; }
 <div id="pdf-overlay" class="ovl" style="align-items:center;">
   <div class="sheet" style="border-radius: var(--r-lg); max-width: 360px; padding: 24px;">
     <h3 style="margin-bottom:15px;"><i class="ti ti-file-pdf" style="color:var(--signal)"></i> Export as PDF</h3>
+    
+    <div class="fg" id="pdf-hlb-group" style="display:none;">
+      <label class="fl">Select HLB to Print</label>
+      <select id="pdf-hlb-select" class="fi">
+        <option value="all" selected>All HLBs</option>
+      </select>
+    </div>
+
     <div class="fg">
       <label class="fl">Orientation</label>
       <select id="pdf-orient" class="fi">
@@ -1166,9 +1156,27 @@ window.switchMapType = function(type) {
 };
 
 // =========================================================================
-// PDF EXPORT LOGIC WITH AUTO-SHIFT FOR OVERLAP RESOLUTION
+// PDF EXPORT LOGIC WITH AUTO-SHIFT FOR OVERLAP RESOLUTION & HLB FILTERING
 // =========================================================================
 window.openPdfModal = function() {
+    const hlbGroup = document.getElementById('pdf-hlb-group');
+    const hlbSelect = document.getElementById('pdf-hlb-select');
+    
+    // Check available HLBs from rendered points
+    const usedHLBs = [...new Set(features.filter(f => f.geometryType === 'point' && f.hlb).map(f => f.hlb))].filter(Boolean);
+    
+    if (usedHLBs.length > 1) {
+        hlbGroup.style.display = 'block';
+        let opts = '<option value="all" selected>All HLBs</option>';
+        usedHLBs.sort((a,b) => a.localeCompare(b, undefined, {numeric: true})).forEach(hlb => {
+            opts += `<option value="${hlb}">HLB ${hlb}</option>`;
+        });
+        hlbSelect.innerHTML = opts;
+    } else {
+        hlbGroup.style.display = 'none';
+        hlbSelect.innerHTML = '<option value="all" selected>All HLBs</option>';
+    }
+
     document.getElementById('pdf-overlay').classList.add('open');
 };
 
@@ -1181,6 +1189,7 @@ window.generatePDF = function() {
     let h = parseFloat(document.getElementById('pdf-height').value) || 25.7;
     let orient = document.getElementById('pdf-orient').value;
     let avoidOverlap = document.getElementById('pdf-overlap').checked;
+    let selectedHLB = document.getElementById('pdf-hlb-select').value;
 
     if (orient === 'portrait') {
         if (w > h) { let t=w; w=h; h=t; }
@@ -1190,6 +1199,9 @@ window.generatePDF = function() {
 
     closePdfModal();
     showStatus('Preparing layout...', 'ok', 0);
+
+    // Apply HLB Filter visually before printing
+    renderAll(selectedHLB);
 
     let styleStr = `
         @media print {
@@ -1236,8 +1248,11 @@ window.generatePDF = function() {
 
     let bounds = L.latLngBounds([]);
     features.forEach(f => {
-        if(f.geometryType === 'point') bounds.extend(f.coords);
-        else if(Array.isArray(f.coords)) f.coords.forEach(c => {if(c.length===2) bounds.extend(c)});
+        if(f.geometryType === 'point') {
+            if (selectedHLB === 'all' || f.hlb === selectedHLB) bounds.extend(f.coords);
+        } else if(Array.isArray(f.coords)) {
+            f.coords.forEach(c => {if(c.length===2) bounds.extend(c)});
+        }
     });
 
     if (bounds.isValid()) {
@@ -1247,7 +1262,7 @@ window.generatePDF = function() {
     setTimeout(() => {
         let restoreOverlaps = null;
         if (avoidOverlap) {
-            restoreOverlaps = resolveOverlaps();
+            restoreOverlaps = resolveOverlaps(selectedHLB);
         }
 
         showStatus('Generating PDF...', 'ok', 0);
@@ -1261,25 +1276,37 @@ window.generatePDF = function() {
             mapContainer.style.height = origHeight;
             mapContainer.style.position = origPos;
             mapContainer.style.zIndex = origZ;
+            
+            renderAll('all'); // Clear HLB visual filter
+
             map.invalidateSize(true);
-            if (bounds.isValid()) {
-                map.fitBounds(bounds, { padding: [24, 24], animate: false });
+            
+            let fullBounds = L.latLngBounds([]);
+            features.forEach(f => {
+                if(f.geometryType === 'point') fullBounds.extend(f.coords);
+                else if(Array.isArray(f.coords)) f.coords.forEach(c => {if(c.length===2) fullBounds.extend(c)});
+            });
+            if (fullBounds.isValid()) {
+                map.fitBounds(fullBounds, { padding: [24, 24], animate: false });
             }
             clearStatus();
         }, 800); 
     }, 400); 
 };
 
-function resolveOverlaps() {
+function resolveOverlaps(hlbFilter = 'all') {
     let pts = features.filter(f => f.geometryType === 'point');
+    if (hlbFilter !== 'all') pts = pts.filter(f => f.hlb === hlbFilter);
+    
     if(!pts.length) return null;
     let nodes = pts.map(f => {
         let mk = allMarkerRefs[f.id];
+        if(!mk) return null;
         let p = map.latLngToLayerPoint(mk.getLatLng());
         return { id: f.id, mk: mk, orig: mk.getLatLng(), x: p.x, y: p.y };
-    });
+    }).filter(Boolean);
 
-    const W = 30, H = 30; // Min distance needed between centers to avoid collision
+    const W = 30, H = 30; // Distance needed between centers to avoid collision
     let collided = true;
     let iterations = 0;
     while(collided && iterations < 200) {
@@ -2100,7 +2127,7 @@ window.saveFeature = function() {
     feature.note = document.getElementById('bnd-note').value.trim();
   }
 
-  saveData(); window.closeModal(); renderAll();
+  saveData(); window.closeModal(); renderAll('all');
   haptic(12);
   showStatus((editingId ? 'Updated' : 'Saved') + ' ✓', 'ok', 2200);
 };
@@ -2122,7 +2149,7 @@ function deleteFeature(fid) {
   if (arrowFromFid === fid) clearArrowSelection();
   pushUndo({ feature: { ...features[idx] }, idx });
   features.splice(idx, 1);
-  saveData(); renderAll();
+  saveData(); renderAll('all');
   showUndoBar('Feature deleted');
 }
 window.undoLast = function() {
@@ -2131,7 +2158,7 @@ window.undoLast = function() {
   if (!features.length) return showStatus('Nothing to undo', 'warn');
   const f = features.pop();
   pushUndo({ feature: f });
-  saveData(); renderAll();
+  saveData(); renderAll('all');
   showUndoBar('Last feature removed');
 };
 function pushUndo(entry) { undoStack.push(entry); if (undoStack.length > UNDO_MAX) undoStack.shift(); }
@@ -2140,7 +2167,7 @@ window.undoDelete = function() {
   const last = undoStack.pop();
   if (last.idx != null) features.splice(last.idx, 0, last.feature);
   else features.push(last.feature);
-  saveData(); renderAll(); window.dismissUndo();
+  saveData(); renderAll('all'); window.dismissUndo();
   showStatus('Restored ✓', 'ok', 1500);
 };
 let undoTimer = null;
@@ -2169,7 +2196,8 @@ function attachRowLongPress(rowEl, fid) {
   rowEl.addEventListener('mouseleave', cancel);
 }
 
-function renderAll() {
+// Ensure the renderAll defaults to 'all' HLB filter
+function renderAll(hlbFilter = 'all') {
   mkLayer.clearLayers();
   allMarkerRefs = {};
 
@@ -2194,7 +2222,16 @@ function renderAll() {
     attachPolyEvents(poly, f.id);
   });
 
+  const filteredPoints = features.filter(f => f.geometryType === 'point' && (hlbFilter === 'all' || f.hlb === hlbFilter));
+
   features.filter(f => f.geometryType === 'arrow').forEach(f => {
+    if (hlbFilter !== 'all') {
+      const hasMatch = filteredPoints.some(p => 
+        (p.coords[0] === f.coords[0][0] && p.coords[1] === f.coords[0][1]) || 
+        (p.coords[0] === f.coords[1][0] && p.coords[1] === f.coords[1][1])
+      );
+      if (!hasMatch) return; 
+    }
     const poly = L.polyline(f.coords, { color: '#fb4570', weight: 2, dashArray: '5,5' }).addTo(mkLayer);
     try {
       L.polylineDecorator(poly, { patterns: [{ offset: '10%', repeat: '50px', symbol: L.Symbol.arrowHead({ pixelSize: 12, polygon: false, pathOptions: { stroke: true, color: '#fb4570', weight: 3 } }) }] }).addTo(mkLayer);
@@ -2202,29 +2239,27 @@ function renderAll() {
     attachPolyEvents(poly, f.id);
   });
 
-  features.filter(f => f.geometryType === 'point').forEach(f => {
-    let html = '', iconSize = [26, 26];
+  filteredPoints.forEach(f => {
+    let html = '', iconSize = [28, 28];
     const house = isHouseType(f.type);
     
-    // NEW: Render the tiny dot in the center + the box
     if (house) {
       const isNR = f.subtype === 'nr';
       const boxNumber = f.name ? f.name : ((f.censusCount && f.censusCount > 1) ? f.censusCount : '');
       const textDiv = boxNumber ? `<div class="census-box-text">${esc(boxNumber)}</div>` : '';
       
       html = `<div class="census-wrap">
-                <!-- Tiny dot for exact coordinate -->
                 <div style="position:absolute; width:4px; height:4px; background:red; border-radius:50%; z-index:-1;"></div>
                 <div class="census-box ${isNR ? 'nr' : 'res'}">${textDiv}</div>
               </div>`;
-      iconSize = [26, 26]; 
+      iconSize = [28, 28]; 
     } else {
       const m = INSTITUTION_META[f.type] || { letter: '?', color: '#6b7280' };
       html = `<div class="census-wrap">
                 <div style="position:absolute; width:4px; height:4px; background:red; border-radius:50%; z-index:-1;"></div>
-                <div class="sh-inst" style="background:${m.color};width:22px;height:22px;border-radius:50%;font-size:9px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;">${m.letter}</div>
+                <div class="sh-inst" style="background:${m.color};width:20px;height:20px;border-radius:50%;font-size:9px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;">${m.letter}</div>
               </div>`;
-      iconSize = [22, 22];
+      iconSize = [20, 20];
     }
 
     if (f.stage2) html += '<div class="stage2-badge"></div>';
@@ -2265,6 +2300,7 @@ function renderAll() {
   renderActiveTabContent();
   updateBackupReminderUI();
 }
+
 function attachPolyEvents(poly, fid) {
   poly.on('click', function(e) { L.DomEvent.stopPropagation(e); if (currentMode !== 'arrow') openCtxFor(fid, e.originalEvent); });
   poly.on('contextmenu', function(e) { L.DomEvent.stopPropagation(e); if (currentMode !== 'arrow') openCtxFor(fid, e.originalEvent); });
@@ -2476,21 +2512,6 @@ function renderStatsTab() {
   `;
 }
 
-window.fitToArea = function() {
-  const bounds = L.latLngBounds([]);
-  const boundaries = features.filter(f => f.geometryType === 'boundary');
-  if (boundaries.length) {
-    boundaries.forEach(f => f.coords.forEach(c => bounds.extend(c)));
-  } else {
-    features.forEach(f => {
-      if (f.geometryType === 'point') bounds.extend(f.coords);
-      else if (Array.isArray(f.coords)) f.coords.forEach(c => { if (Array.isArray(c) && c.length === 2 && typeof c[0] === 'number') bounds.extend(c); });
-    });
-  }
-  if (!bounds.isValid()) { showStatus('No features yet', 'warn'); return; }
-  map.fitBounds(bounds, { padding: [24, 24], maxZoom: 20 });
-};
-
 window.loadImageOverlay = function(ev) {
   const file = ev.target.files[0]; if (!file) return;
   const reader = new FileReader();
@@ -2621,7 +2642,7 @@ window.clearAll = function() {
   if (searchMarker) { map.removeLayer(searchMarker); searchMarker = null; }
   try { localStorage.setItem('census-v4', JSON.stringify(features)); } catch(e) {}
   clearDirtyState();
-  renderAll();
+  renderAll('all');
   showStatus('All data cleared', 'warn', 2000);
 };
 
@@ -2760,7 +2781,7 @@ window.applyImport = function(mode) {
   else features = features.concat(incoming);
   saveData();
   window.closeImportModal();
-  renderAll();
+  renderAll('all');
   showStatus(`Imported ${incoming.length} feature${incoming.length === 1 ? '' : 's'} (${mode === 'replace' ? 'replaced' : 'merged'}) ✓`, 'ok', 3500);
 };
 
@@ -2807,7 +2828,7 @@ document.addEventListener('keydown', e => {
 });
 
 // Initialization
-renderAll();
+renderAll('all');
 document.getElementById('qm-toggle').classList.toggle('on', quickMarkOn);
 if (walkTrail.length > 1) { redrawWalkTrail(); updateWalkBadge(); }
 updateBackupReminderUI();
